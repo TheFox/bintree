@@ -5,7 +5,9 @@ const ArrayList = std.ArrayList;
 const print = std.debug.print;
 const eql = std.mem.eql;
 const tree = @import("tree.zig");
-const PrefixPathT = @import("types.zig").PrefixPathT;
+const types = @import("types.zig");
+const PrefixPathT = types.PrefixPathT;
+const LevelT = types.LevelT;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -24,7 +26,7 @@ pub fn main() !void {
     var arg_verbose: bool = false;
     var arg_delimiter: u8 = '\n';
     var arg_is_hex: bool = false;
-    var arg_max_level: usize = 256;
+    var arg_max_level: LevelT = 256;
     print("args: {d}\n", .{args.len});
     while (args_iter.next()) |arg| {
         if (eql(u8, arg, "-h") or eql(u8, arg, "--help")) {
@@ -57,12 +59,7 @@ pub fn main() !void {
         } else if (eql(u8, arg, "-l")) {
             const n = args_iter.next();
             if (n != null) {
-                const s = n.?;
-                // print("-> n={s}\n", .{n.?});
-                // const x = try std.fmt.parseInt(u8, n.?, 10);
-                arg_max_level = try std.fmt.parseInt(usize, s, 10);
-                // print("-> x={d}\n", .{arg_max_level});
-                // return;
+                arg_max_level = try std.fmt.parseInt(LevelT, n.?, 10);
             }
         }
     }
@@ -70,7 +67,7 @@ pub fn main() !void {
     print("arg_delimiter: {d}\n", .{arg_delimiter});
     print("arg_is_hex: {any}\n", .{arg_is_hex});
 
-    var root = tree.RootNode(allocator, arg_max_level);
+    var root = tree.RootNode(allocator);
     defer root.deinit();
 
     for (files.items) |file_path| {
@@ -118,7 +115,7 @@ pub fn main() !void {
     const prefix_path = PrefixPathT.init(allocator);
     defer prefix_path.deinit();
 
-    try root.show(0, false, &prefix_path);
+    try root.show(0, arg_max_level, false, &prefix_path);
 }
 
 fn print_help() void {

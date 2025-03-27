@@ -3,41 +3,55 @@ const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 const bufPrint = std.fmt.bufPrint;
-const PrefixPathT = @import("types.zig").PrefixPathT;
+const types = @import("types.zig");
+const PrefixPathT = types.PrefixPathT;
+const LevelT = types.LevelT;
 
-pub fn RootNode(allocator: Allocator, max_level: usize) Node {
-    return Node.init(allocator, 0, 0, max_level);
+pub fn RootNode(allocator: Allocator) Node {
+    return Node.init(allocator, 0, 0);
 }
 
 pub const Node = struct {
     allocator: Allocator,
     value: u8,
+    parent: ?*Node,
     children: ArrayList(Node),
     count: usize,
-    level: usize,
-    max_level: usize,
+    level: LevelT,
+    max_level: LevelT,
 
-    pub fn init(allocator: Allocator, value: u8, level: usize, max_level: usize) Node {
+    pub fn init(allocator: Allocator, value: u8, level: LevelT) Node {
         const children = ArrayList(Node).init(allocator);
         return Node{
             .allocator = allocator,
             .value = value,
+            .parent = null,
             .children = children,
             .count = 0,
             .level = level,
-            .max_level = max_level,
+            .max_level = 0,
         };
     }
 
     pub fn deinit(self: *const Node) void {
+        print("Node.deinit\n", .{});
         for (self.children.items) |node| {
             node.deinit();
         }
         self.children.deinit();
     }
 
-    pub fn addChild(self: *Node, child: Node) !void {
-        try self.children.append(child);
+    pub fn reportLevel(self: *Node, max_level: LevelT) void {
+        print("reportLevel: {d} -> {d}\n", .{ self.level, max_level });
+        self.max_level = max_level;
+
+        if (self.parent) |parent| {
+            print("Parent exists at: {*}---\n", .{parent});
+            parent.reportLevel(max_level);
+            print("Parent exists OK\n", .{});
+        } else {
+            print("No parent, stopping recursion.\n", .{});
+        }
     }
 
     pub fn addBytes(self: *Node, bytes: []const u8) !void {
@@ -55,16 +69,16 @@ pub const Node = struct {
             }
         }
 
-        if (self.level >= self.max_level) {
-            return;
-        }
-
-        var child = Node.init(self.allocator, bytes[0], self.level + 1, self.max_level);
+        const new_level: LevelT = self.level + 1;
+        var child = Node.init(self.allocator, bytes[0], new_level);
+        child.parent = self;
+        print("current node: {d} {*} new node: {*}\n", .{ self.level, self, &child });
         try child.addBytes(bytes[1..]);
-        try self.addChild(child);
+        try self.children.append(child);
+        self.reportLevel(new_level);
     }
 
-    pub fn show(self: *const Node, level: usize, is_last: bool, prefix_path: *const PrefixPathT) !void {
+    pub fn show(self: *const Node, level: LevelT, max_level: LevelT, is_last: bool, prefix_path: *const PrefixPathT) !void {
         // https://stackoverflow.com/questions/21924487/how-get-ascii-characters-similar-to-output-of-the-linux-command-tree
         // Char: '├' => $'\342\224\234'
         // Char: '─' => $'\342\224\200'
@@ -78,22 +92,30 @@ pub const Node = struct {
 
         if (self.level == 0) {
             @branchHint(.unlikely);
-            print("root c={d} ({d})\n", .{
+            print("root c={d} ML={d} ({d})\n", .{
                 self.count,
+                self.max_level,
                 self.children.items.len,
             });
         } else {
             const iprefix = if (is_last) "└" else "├";
-            print("{s}─ 0x{X:0>2} c={d} ({d})\n", .{
+            print("{s}─ 0x{X:0>2} c={d} ML={} ({d})\n", .{
                 iprefix,
                 self.value,
                 self.count,
+                self.max_level,
                 self.children.items.len,
             });
         }
+
+        if (level >= max_level) {
+            return;
+        }
+
         const child_len = self.children.items.len;
         var n: usize = 0;
         for (self.children.items) |child| {
+            print("level {d}, child {*}\n", .{ self.level, &child });
             n += 1;
             const child_is_last = n == child_len;
 
@@ -107,7 +129,7 @@ pub const Node = struct {
                 try new_path.append("│");
             }
 
-            try child.show(level + 1, child_is_last, &new_path);
+            try child.show(level + 1, max_level, child_is_last, &new_path);
         }
     }
 };
