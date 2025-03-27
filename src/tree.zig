@@ -37,16 +37,18 @@ pub const Node = struct {
 
     pub fn deinit(self: *Node) void {
         // print("Node.deinit: {X} {X}\n", .{ @intFromPtr(self), @intFromPtr(self.parent) });
-        for (self.children.items) |node| {
+        for (self.children.items) |node|
             node.deinit();
-        }
+
         self.children.deinit();
         self.allocator.destroy(self);
     }
 
     pub fn reportLevel(self: *Node, max_level: LevelT) void {
         // print("reportLevel: {d} -> {d}\n", .{ self.level, max_level });
-        self.max_level = max_level;
+
+        if (max_level > self.max_level)
+            self.max_level = max_level;
 
         if (self.parent) |parent| {
             // print("Parent exists at: {X}---\n", .{@intFromPtr(parent)});
