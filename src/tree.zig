@@ -7,7 +7,7 @@ const types = @import("types.zig");
 const PrefixPathT = types.PrefixPathT;
 const LevelT = types.LevelT;
 
-pub fn RootNode(allocator: Allocator) Node {
+pub fn RootNode(allocator: Allocator) *Node {
     return Node.init(allocator, null, 0, 0);
 }
 
@@ -15,14 +15,15 @@ pub const Node = struct {
     allocator: Allocator,
     value: u8,
     parent: ?*Node,
-    children: ArrayList(Node),
+    children: ArrayList(*Node),
     count: usize,
     level: LevelT,
     max_level: LevelT,
 
-    pub fn init(allocator: Allocator, parent: ?*Node, value: u8, level: LevelT) Node {
-        const children = ArrayList(Node).init(allocator);
-        return Node{
+    pub fn init(allocator: Allocator, parent: ?*Node, value: u8, level: LevelT) *Node {
+        const children = ArrayList(*Node).init(allocator);
+        const node = allocator.create(Node) catch unreachable;
+        node.* = Node{
             .allocator = allocator,
             .value = value,
             .parent = parent,
@@ -31,31 +32,33 @@ pub const Node = struct {
             .level = level,
             .max_level = 0,
         };
+        return node;
     }
 
-    pub fn deinit(self: *const Node) void {
-        print("Node.deinit: {any}\n", .{@intFromPtr(self.parent)});
+    pub fn deinit(self: *Node) void {
+        // print("Node.deinit: {X} {X}\n", .{ @intFromPtr(self), @intFromPtr(self.parent) });
         for (self.children.items) |node| {
             node.deinit();
         }
         self.children.deinit();
+        self.allocator.destroy(self);
     }
 
     pub fn reportLevel(self: *Node, max_level: LevelT) void {
-        print("reportLevel: {d} -> {d}\n", .{ self.level, max_level });
-        // self.max_level = max_level;
+        // print("reportLevel: {d} -> {d}\n", .{ self.level, max_level });
+        self.max_level = max_level;
 
         if (self.parent) |parent| {
-            print("Parent exists at: {*}---\n", .{parent});
+            // print("Parent exists at: {X}---\n", .{@intFromPtr(parent)});
             parent.reportLevel(max_level);
-            print("Parent exists OK\n", .{});
+            //     print("Parent exists OK\n", .{});
             // } else {
             //     print("No parent, stopping recursion.\n", .{});
         }
     }
 
     pub fn addBytes(self: *Node, bytes: []const u8) !void {
-        print("addBytes\n", .{});
+        // print("addBytes\n", .{});
         self.count += 1;
         if (bytes.len == 0) {
             return;
@@ -63,7 +66,7 @@ pub const Node = struct {
 
         // Search in children for exact value.
         // Should be Assoc Array instead.
-        for (self.children.items) |*child| {
+        for (self.children.items) |child| {
             if (child.value == bytes[0]) {
                 try child.addBytes(bytes[1..]);
                 return;
@@ -71,10 +74,10 @@ pub const Node = struct {
         }
 
         // Debug
-        print("addBytes A---\n", .{});
-        for (self.children.items) |*achild| {
-            print("addBytes A: {any}\n", .{@intFromPtr(achild)});
-        }
+        // print("addBytes A---\n", .{});
+        // for (self.children.items) |*achild| {
+        //     print("addBytes A: {X}\n", .{@intFromPtr(achild)});
+        // }
 
         const new_level: LevelT = self.level + 1;
         var child = Node.init(self.allocator, self, bytes[0], new_level);
@@ -82,13 +85,13 @@ pub const Node = struct {
         try child.addBytes(bytes[1..]);
         try self.children.append(child);
 
-        // self.reportLevel(new_level); // ERROR
+        self.reportLevel(new_level);
 
         // Debug
-        print("addBytes B---\n", .{});
-        for (self.children.items) |*bchild| {
-            print("addBytes B: {any}\n", .{@intFromPtr(bchild)});
-        }
+        // print("addBytes B---\n", .{});
+        // for (self.children.items) |*bchild| {
+        //     print("addBytes B: {X}\n", .{@intFromPtr(bchild)});
+        // }
     }
 
     pub fn show(self: *const Node, level: LevelT, max_level: LevelT, is_last: bool, prefix_path: *const PrefixPathT) !void {
@@ -128,7 +131,7 @@ pub const Node = struct {
         const child_len = self.children.items.len;
         var n: usize = 0;
         for (self.children.items) |child| {
-            print("level {d}, child {*}\n", .{ self.level, &child });
+            // print("level {d}, child {*}\n", .{ self.level, &child });
             n += 1;
             const child_is_last = n == child_len;
 
