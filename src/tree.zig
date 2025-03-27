@@ -8,7 +8,7 @@ const PrefixPathT = types.PrefixPathT;
 const LevelT = types.LevelT;
 
 pub fn RootNode(allocator: Allocator) Node {
-    return Node.init(allocator, 0, 0);
+    return Node.init(allocator, null, 0, 0);
 }
 
 pub const Node = struct {
@@ -20,12 +20,12 @@ pub const Node = struct {
     level: LevelT,
     max_level: LevelT,
 
-    pub fn init(allocator: Allocator, value: u8, level: LevelT) Node {
+    pub fn init(allocator: Allocator, parent: ?*Node, value: u8, level: LevelT) Node {
         const children = ArrayList(Node).init(allocator);
         return Node{
             .allocator = allocator,
             .value = value,
-            .parent = null,
+            .parent = parent,
             .children = children,
             .count = 0,
             .level = level,
@@ -34,7 +34,7 @@ pub const Node = struct {
     }
 
     pub fn deinit(self: *const Node) void {
-        print("Node.deinit\n", .{});
+        print("Node.deinit: {any}\n", .{@intFromPtr(self.parent)});
         for (self.children.items) |node| {
             node.deinit();
         }
@@ -43,18 +43,19 @@ pub const Node = struct {
 
     pub fn reportLevel(self: *Node, max_level: LevelT) void {
         print("reportLevel: {d} -> {d}\n", .{ self.level, max_level });
-        self.max_level = max_level;
+        // self.max_level = max_level;
 
         if (self.parent) |parent| {
             print("Parent exists at: {*}---\n", .{parent});
             parent.reportLevel(max_level);
             print("Parent exists OK\n", .{});
-        } else {
-            print("No parent, stopping recursion.\n", .{});
+            // } else {
+            //     print("No parent, stopping recursion.\n", .{});
         }
     }
 
     pub fn addBytes(self: *Node, bytes: []const u8) !void {
+        print("addBytes\n", .{});
         self.count += 1;
         if (bytes.len == 0) {
             return;
@@ -69,13 +70,25 @@ pub const Node = struct {
             }
         }
 
+        // Debug
+        print("addBytes A---\n", .{});
+        for (self.children.items) |*achild| {
+            print("addBytes A: {any}\n", .{@intFromPtr(achild)});
+        }
+
         const new_level: LevelT = self.level + 1;
-        var child = Node.init(self.allocator, bytes[0], new_level);
-        child.parent = self;
-        print("current node: {d} {*} new node: {*}\n", .{ self.level, self, &child });
+        var child = Node.init(self.allocator, self, bytes[0], new_level);
+        // print("current node: {d} {*} new node: {*}\n", .{ self.level, self, &child });
         try child.addBytes(bytes[1..]);
         try self.children.append(child);
-        self.reportLevel(new_level);
+
+        // self.reportLevel(new_level); // ERROR
+
+        // Debug
+        print("addBytes B---\n", .{});
+        for (self.children.items) |*bchild| {
+            print("addBytes B: {any}\n", .{@intFromPtr(bchild)});
+        }
     }
 
     pub fn show(self: *const Node, level: LevelT, max_level: LevelT, is_last: bool, prefix_path: *const PrefixPathT) !void {
@@ -137,14 +150,14 @@ pub const Node = struct {
 test "simple_node" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    const root = Node.init(allocator, 0, 0, 2);
+    const root = Node.init(allocator, null, 0, 0, 2);
     defer root.deinit();
 }
 
 test "simple_string" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    const root = Node.init(allocator, 0, 0, 2);
+    const root = Node.init(allocator, null, 0, 0, 2);
     defer root.deinit();
 
     root.addBytes("ABCD");
