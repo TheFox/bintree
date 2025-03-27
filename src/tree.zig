@@ -114,7 +114,7 @@ pub const Node = struct {
         defer keys.deinit();
         while (iter.next()) |entry|
             try keys.append(entry.key_ptr.*);
-        std.mem.sort(u8, keys.items, {}, comptime std.sort.asc(u8));
+        std.mem.sort(u8, keys.items, {}, comptime std.sort.asc_u8);
 
         const child_len = self.children.count();
         var n: usize = 0;
