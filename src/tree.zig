@@ -1,11 +1,13 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
+const AutoHashMap = std.AutoHashMap;
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 const bufPrint = std.fmt.bufPrint;
 const types = @import("types.zig");
 const PrefixPathT = types.PrefixPathT;
 const LevelT = types.LevelT;
+const ChildList = AutoHashMap(u8, *Node);
 
 pub fn RootNode(allocator: Allocator) *Node {
     return Node.init(allocator, null, 0, 0);
@@ -15,13 +17,13 @@ pub const Node = struct {
     allocator: Allocator,
     value: u8,
     parent: ?*Node,
-    children: ArrayList(*Node),
+    children: ChildList,
     count: usize,
     level: LevelT,
     max_level: LevelT,
 
     pub fn init(allocator: Allocator, parent: ?*Node, value: u8, level: LevelT) *Node {
-        const children = ArrayList(*Node).init(allocator);
+        const children = ChildList.init(allocator);
         const node = allocator.create(Node) catch unreachable;
         node.* = Node{
             .allocator = allocator,
@@ -36,27 +38,21 @@ pub const Node = struct {
     }
 
     pub fn deinit(self: *Node) void {
-        // print("Node.deinit: {X} {X}\n", .{ @intFromPtr(self), @intFromPtr(self.parent) });
-        for (self.children.items) |node|
+        var iter = self.children.iterator();
+        while (iter.next()) |entry| {
+            const node = entry.value_ptr.*;
             node.deinit();
-
+        }
         self.children.deinit();
         self.allocator.destroy(self);
     }
 
     pub fn reportLevel(self: *Node, max_level: LevelT) void {
-        // print("reportLevel: {d} -> {d}\n", .{ self.level, max_level });
-
         if (max_level > self.max_level)
             self.max_level = max_level;
 
-        if (self.parent) |parent| {
-            // print("Parent exists at: {X}---\n", .{@intFromPtr(parent)});
-            parent.reportLevel(max_level);
-            //     print("Parent exists OK\n", .{});
-            // } else {
-            //     print("No parent, stopping recursion.\n", .{});
-        }
+        if (self.parent) |parent_node|
+            parent_node.reportLevel(max_level);
     }
 
     pub fn addBytes(self: *Node, bytes: []const u8) !void {
@@ -66,34 +62,21 @@ pub const Node = struct {
             return;
         }
 
-        // Search in children for exact value.
-        // Should be Assoc Array instead.
-        for (self.children.items) |child| {
-            if (child.value == bytes[0]) {
-                try child.addBytes(bytes[1..]);
-                return;
-            }
-        }
+        const key = bytes[0];
 
-        // Debug
-        // print("addBytes A---\n", .{});
-        // for (self.children.items) |*achild| {
-        //     print("addBytes A: {X}\n", .{@intFromPtr(achild)});
-        // }
+        if (self.children.get(key)) |node| {
+            try node.addBytes(bytes[1..]);
+            return;
+        }
 
         const new_level: LevelT = self.level + 1;
         var child = Node.init(self.allocator, self, bytes[0], new_level);
         // print("current node: {d} {*} new node: {*}\n", .{ self.level, self, &child });
         try child.addBytes(bytes[1..]);
-        try self.children.append(child);
+        // try self.children.append(child);
+        try self.children.put(key, child);
 
         self.reportLevel(new_level);
-
-        // Debug
-        // print("addBytes B---\n", .{});
-        // for (self.children.items) |*bchild| {
-        //     print("addBytes B: {X}\n", .{@intFromPtr(bchild)});
-        // }
     }
 
     pub fn show(self: *const Node, level: LevelT, max_level: LevelT, is_last: bool, prefix_path: *const PrefixPathT) !void {
@@ -113,7 +96,7 @@ pub const Node = struct {
             print("root c={d} ML={d} ({d})\n", .{
                 self.count,
                 self.max_level,
-                self.children.items.len,
+                self.children.count(),
             });
         } else {
             const iprefix = if (is_last) "└" else "├";
@@ -122,7 +105,7 @@ pub const Node = struct {
                 self.value,
                 self.count,
                 self.max_level,
-                self.children.items.len,
+                self.children.count(),
             });
         }
 
@@ -130,10 +113,18 @@ pub const Node = struct {
             return;
         }
 
-        const child_len = self.children.items.len;
+        var iter = self.children.iterator();
+        var keys = std.ArrayList(u8).init(self.allocator);
+        defer keys.deinit();
+        while (iter.next()) |entry|
+            try keys.append(entry.key_ptr.*);
+        std.mem.sort(u8, keys.items, {}, comptime std.sort.asc(u8));
+
+        const child_len = self.children.count();
         var n: usize = 0;
-        for (self.children.items) |child| {
-            // print("level {d}, child {*}\n", .{ self.level, &child });
+        for (keys.items) |key| {
+            const child = self.children.get(key).?;
+
             n += 1;
             const child_is_last = n == child_len;
 
