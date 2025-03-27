@@ -20,7 +20,7 @@ pub const Node = struct {
     children: ChildList,
     count: usize,
     level: LevelT,
-    max_level: LevelT,
+    max_depth: LevelT,
 
     pub fn init(allocator: Allocator, parent: ?*Node, value: u8, level: LevelT) *Node {
         const children = ChildList.init(allocator);
@@ -32,7 +32,7 @@ pub const Node = struct {
             .children = children,
             .count = 0,
             .level = level,
-            .max_level = 0,
+            .max_depth = 0,
         };
         return node;
     }
@@ -47,20 +47,18 @@ pub const Node = struct {
         self.allocator.destroy(self);
     }
 
-    pub fn reportLevel(self: *Node, max_level: LevelT) void {
-        if (max_level > self.max_level)
-            self.max_level = max_level;
+    pub fn reportMaxDepth(self: *Node, max_depth: LevelT) void {
+        if (max_depth > self.max_depth)
+            self.max_depth = max_depth;
 
         if (self.parent) |parent_node|
-            parent_node.reportLevel(max_level);
+            parent_node.reportMaxDepth(max_depth);
     }
 
     pub fn addBytes(self: *Node, bytes: []const u8) !void {
-        // print("addBytes\n", .{});
         self.count += 1;
-        if (bytes.len == 0) {
+        if (bytes.len == 0)
             return;
-        }
 
         const key = bytes[0];
 
@@ -71,15 +69,13 @@ pub const Node = struct {
 
         const new_level: LevelT = self.level + 1;
         var child = Node.init(self.allocator, self, bytes[0], new_level);
-        // print("current node: {d} {*} new node: {*}\n", .{ self.level, self, &child });
         try child.addBytes(bytes[1..]);
-        // try self.children.append(child);
         try self.children.put(key, child);
 
-        self.reportLevel(new_level);
+        self.reportMaxDepth(new_level);
     }
 
-    pub fn show(self: *const Node, level: LevelT, max_level: LevelT, is_last: bool, prefix_path: *const PrefixPathT) !void {
+    pub fn show(self: *const Node, level: LevelT, max_depth: LevelT, is_last: bool, prefix_path: *const PrefixPathT) !void {
         // https://stackoverflow.com/questions/21924487/how-get-ascii-characters-similar-to-output-of-the-linux-command-tree
         // Char: '├' => $'\342\224\234'
         // Char: '─' => $'\342\224\200'
@@ -93,23 +89,23 @@ pub const Node = struct {
 
         if (self.level == 0) {
             @branchHint(.unlikely);
-            print("root c={d} ML={d} ({d})\n", .{
+            print("root c={d} d={d} ({d})\n", .{
                 self.count,
-                self.max_level,
+                self.max_depth,
                 self.children.count(),
             });
         } else {
             const iprefix = if (is_last) "└" else "├";
-            print("{s}─ 0x{X:0>2} c={d} ML={} ({d})\n", .{
+            print("{s}─ 0x{X:0>2} c={d} d={} ({d})\n", .{
                 iprefix,
                 self.value,
                 self.count,
-                self.max_level,
+                self.max_depth,
                 self.children.count(),
             });
         }
 
-        if (level >= max_level) {
+        if (level >= max_depth) {
             return;
         }
 
@@ -132,13 +128,9 @@ pub const Node = struct {
             defer new_path.deinit();
             try new_path.appendSlice(prefix_path.items);
 
-            if (child_is_last) {
-                try new_path.append(" ");
-            } else {
-                try new_path.append("│");
-            }
+            try new_path.append(if (child_is_last) " " else "│");
 
-            try child.show(level + 1, max_level, child_is_last, &new_path);
+            try child.show(level + 1, max_depth, child_is_last, &new_path);
         }
     }
 };
