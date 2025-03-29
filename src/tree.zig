@@ -8,6 +8,7 @@ const types = @import("types.zig");
 const PrefixPathT = types.PrefixPathT;
 const LevelT = types.LevelT;
 const ChildList = AutoHashMap(u8, *Node);
+const expect = std.testing.expect;
 
 pub fn RootNode(allocator: Allocator) *Node {
     return Node.init(allocator, null, 0, 0);
@@ -167,18 +168,52 @@ pub const Node = struct {
     }
 };
 
-test "simple_node" {
+test "simple node" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    const root = Node.init(allocator, null, 0, 0, 2);
-    defer root.deinit();
+
+    const node = RootNode(allocator);
+    defer node.deinit();
 }
 
-test "simple_string" {
+test "simple string" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    const root = Node.init(allocator, null, 0, 0, 2);
-    defer root.deinit();
 
-    root.addBytes("ABCD");
+    const node = RootNode(allocator);
+    defer node.deinit();
+
+    try node.addBytes("\x01\x02\x03", 256);
+    try node.addBytes("\x01\x02\x04", 256);
+
+    try expect(node.count == 2);
+    try expect(node.children.count() == 1);
+
+    if (node.children.get(1)) |subnode1| {
+        try expect(subnode1.value == 1);
+        try expect(subnode1.children.count() == 1);
+
+        if (subnode1.children.get(2)) |subnode2| {
+            try expect(subnode2.value == 2);
+            try expect(subnode2.children.count() == 2);
+
+            if (subnode2.children.get(3)) |subnode3| {
+                try expect(subnode3.value == 3);
+                try expect(subnode3.children.count() == 0);
+            } else {
+                try expect(false);
+            }
+
+            if (subnode2.children.get(4)) |subnode4| {
+                try expect(subnode4.value == 4);
+                try expect(subnode4.children.count() == 0);
+            } else {
+                try expect(false);
+            }
+        } else {
+            try expect(false);
+        }
+    } else {
+        try expect(false);
+    }
 }
