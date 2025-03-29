@@ -1,12 +1,14 @@
 const std = @import("std");
+const mem = std.mem;
+const contains = mem.containsAtLeastScalar;
 const ArrayList = std.ArrayList;
 const print = std.debug.print;
 const eql = std.mem.eql;
+const parseInt = std.fmt.parseInt;
 const tree = @import("tree.zig");
 const types = @import("types.zig");
 const PrefixPathT = types.PrefixPathT;
 const LevelT = types.LevelT;
-
 const CharInputMode = enum(u2) { unknown, binary, hex };
 
 pub fn main() !void {
@@ -24,13 +26,18 @@ pub fn main() !void {
     var files = ArrayList([]const u8).init(allocator);
     defer files.deinit();
 
-    var arg_verbose: bool = false;
+    var ignores = ArrayList(u8).init(allocator);
+    defer ignores.deinit();
+
+    var arg_verbose_level: u8 = 0;
     var arg_delimiter: u8 = '\n';
     // var arg_is_hex: bool = false;
     var arg_single_char_input_mode: CharInputMode = .unknown;
     var arg_max_parse_level: LevelT = 256;
     var arg_max_show_level: LevelT = 256;
     var arg_min_count_level: LevelT = 0;
+    // var arg_config1 = "tmp/config.json";
+    // var arg_config: []u8 = undefined;
     print("args: {d}\n", .{args.len});
     if (args.len == 1) {
         print_help();
@@ -45,7 +52,11 @@ pub fn main() !void {
                 try files.append(file);
             }
         } else if (eql(u8, arg, "-v")) {
-            arg_verbose = true;
+            arg_verbose_level = 1;
+        } else if (eql(u8, arg, "-vv")) {
+            arg_verbose_level = 2;
+        } else if (eql(u8, arg, "-vvv")) {
+            arg_verbose_level = 3;
         } else if (eql(u8, arg, "-d")) {
             if (args_iter.next()) |next_arg| {
                 if (eql(u8, next_arg, "NL")) {
@@ -67,20 +78,39 @@ pub fn main() !void {
                 } else if (eql(u8, next_arg, "hex")) {
                     arg_single_char_input_mode = .hex;
                 } else {
-                    @panic("Unknown input mode. Use 'bin' or 'hex.");
+                    @panic("ERROR: Unknown input mode. Use 'bin' or 'hex.");
                 }
             }
         } else if (eql(u8, arg, "-l")) {
             if (args_iter.next()) |next_arg| {
-                arg_max_parse_level = try std.fmt.parseInt(LevelT, next_arg, 10);
+                arg_max_parse_level = try parseInt(LevelT, next_arg, 10);
             }
         } else if (eql(u8, arg, "-s")) {
             if (args_iter.next()) |next_arg| {
-                arg_max_show_level = try std.fmt.parseInt(LevelT, next_arg, 10);
+                arg_max_show_level = try parseInt(LevelT, next_arg, 10);
+            }
+        } else if (eql(u8, arg, "-t")) {
+            if (args_iter.next()) |next_arg| {
+                arg_min_count_level = try parseInt(LevelT, next_arg, 10);
             }
         } else if (eql(u8, arg, "-c")) {
             if (args_iter.next()) |next_arg| {
-                arg_min_count_level = try std.fmt.parseInt(LevelT, next_arg, 10);
+                arg_min_count_level = try parseInt(LevelT, next_arg, 10);
+            }
+        } else if (eql(u8, arg, "-i")) {
+            if (args_iter.next()) |next_arg| {
+                for (next_arg) |c| {
+                    if (arg_verbose_level >= 2)
+                        print("ignore character: 0x{X}\n", .{c});
+                    try ignores.append(c);
+                }
+            }
+        } else if (eql(u8, arg, "-ix")) {
+            if (args_iter.next()) |next_arg| {
+                const c = try parseInt(u8, next_arg, 16);
+                if (arg_verbose_level >= 2)
+                    print("ignore character from hex: 0x{X}\n", .{c});
+                try ignores.append(c);
             }
         } else {
             print("Unknown argument: {s}\n", .{arg});
@@ -88,12 +118,13 @@ pub fn main() !void {
         }
     }
 
-    print("arg_delimiter: {d}\n", .{arg_delimiter});
-    print("arg_single_char_input_mode: {any}\n", .{arg_single_char_input_mode});
-    print("arg_max_parse_level: {d}\n", .{arg_max_parse_level});
-    print("arg_max_show_level: {d}\n", .{arg_max_show_level});
-    print("arg_min_count_level: {d}\n", .{arg_min_count_level});
-
+    if (arg_verbose_level >= 1) {
+        print("arg_delimiter: {d}\n", .{arg_delimiter});
+        print("arg_single_char_input_mode: {any}\n", .{arg_single_char_input_mode});
+        print("arg_max_parse_level: {d}\n", .{arg_max_parse_level});
+        print("arg_max_show_level: {d}\n", .{arg_max_show_level});
+        print("arg_min_count_level: {d}\n", .{arg_min_count_level});
+    }
     if (arg_single_char_input_mode == .unknown) {
         print("ERROR: please provide a input mode -m bin or -m hex\n", .{});
         return;
@@ -114,9 +145,9 @@ pub fn main() !void {
         var buf_reader = std.io.bufferedReader(file.reader());
         var in_stream = buf_reader.reader();
 
-        var buf: [4096]u8 = undefined;
-        while (try in_stream.readUntilDelimiterOrEof(&buf, arg_delimiter)) |line| {
-            if (arg_verbose)
+        var line_buffer: [4096]u8 = undefined;
+        while (try in_stream.readUntilDelimiterOrEof(&line_buffer, arg_delimiter)) |line| {
+            if (arg_verbose_level >= 3)
                 print("line: '{s}'\n", .{line});
 
             var bytes = ArrayList(u8).init(allocator);
@@ -125,24 +156,35 @@ pub fn main() !void {
             switch (arg_single_char_input_mode) {
                 .unknown => break,
                 .hex => {
-                    var offset: usize = 0;
-                    for (0..line.len / 2) |_| {
-                        const end = offset + 2;
-                        const x = try std.fmt.parseInt(u8, line[offset..end], 16);
-                        try bytes.append(x);
-
-                        offset = end;
+                    var buf: [2]u8 = undefined;
+                    var n: u1 = 0;
+                    for (line) |c| {
+                        if (contains(u8, ignores.items, 1, c))
+                            continue;
+                        switch (n) {
+                            0 => {
+                                buf[0] = c;
+                                n = 1;
+                            },
+                            1 => {
+                                buf[1] = c;
+                                n = 0;
+                                const x = try parseInt(u8, &buf, 16);
+                                if (contains(u8, ignores.items, 1, x))
+                                    continue;
+                                try bytes.append(x);
+                            },
+                        }
                     }
                 },
                 .binary => {
-                    for (0..line.len) |offset| {
-                        try bytes.append(line[offset]);
+                    for (line) |c| {
+                        if (contains(u8, ignores.items, 1, c))
+                            continue;
+                        try bytes.append(c);
                     }
                 },
             }
-
-            // Debug
-            // for (bytes.items) |b| print("Byte: {x} {X}\n", .{ b, b });
 
             try root.addBytes(bytes.items, arg_max_parse_level);
         }
@@ -161,13 +203,20 @@ fn print_help() void {
         \\Usage: btreeprint [-h] -m <string> [-f <path> [-f <path> ...]] [-l <number>] [-s <number>]
         \\
         \\Options:
-        \\-h            Print this help.
-        \\-f <path>     One file. You can use -f multiple times.
-        \\-d <string>   Delimiter between messages. 'NL' new line (default), '0' (for \0x00) or any other character.
-        \\-m <string>   Input mode: 'bin' or 'hex'.
-        \\-l <number>   Maximum levels to parse.
-        \\-s <number>   Maximum levels to show.
-        \\-c <number>   Minimum node-count.
+        \\-h               Print this help.
+        \\-v               Verbose output.
+        \\-vv              More verbose output.
+        \\-vvv             Even more verbose output.
+        \\-f <path>        One file. You can use -f multiple times.
+        \\-d <string>      Delimiter between messages. 'NL' new line (default), '0' (for \0x00) or any other character.
+        \\-m <string>      Input mode: 'bin' or 'hex'.
+        \\-l <number>      Maximum levels to parse.
+        \\-s <number>      Maximum levels to show.
+        \\-t <number>      Minimum node-count.
+        \\-i <character>   Character to ignore while parsing.
+        \\-ix <hex>        Character to ignore while parsing.
+        \\-g <xpath>       Group using Xpath.
+        \\-s <xpath>       Select using Xpath.
     ;
     print(help ++ "\n", .{});
 }
