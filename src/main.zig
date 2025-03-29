@@ -31,14 +31,13 @@ pub fn main() !void {
 
     var arg_verbose_level: u8 = 0;
     var arg_delimiter: u8 = '\n';
-    // var arg_is_hex: bool = false;
     var arg_single_char_input_mode: CharInputMode = .unknown;
     var arg_max_parse_level: LevelT = 256;
     var arg_max_show_level: LevelT = 256;
     var arg_min_count_level: LevelT = 0;
-    // var arg_config1 = "tmp/config.json";
-    // var arg_config: []u8 = undefined;
-    print("args: {d}\n", .{args.len});
+    if (arg_verbose_level >= 1) {
+        print("args: {d}\n", .{args.len});
+    }
     if (args.len == 1) {
         print_help();
         return;
@@ -50,6 +49,14 @@ pub fn main() !void {
         } else if (eql(u8, arg, "-f")) {
             if (args_iter.next()) |file| {
                 try files.append(file);
+
+                if (arg_single_char_input_mode == .unknown) {
+                    if (eql(u8, file[file.len - 4 ..], ".bin")) {
+                        arg_single_char_input_mode = .binary;
+                    } else if (eql(u8, file[file.len - 4 ..], ".hex")) {
+                        arg_single_char_input_mode = .hex;
+                    }
+                }
             }
         } else if (eql(u8, arg, "-v")) {
             arg_verbose_level = 1;

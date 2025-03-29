@@ -148,6 +148,7 @@ pub const Node = struct {
             }
         }
 
+        // Print
         const child_len = filered.items.len;
         var loop_n: usize = 0;
         for (filered.items) |child| {
