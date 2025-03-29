@@ -19,10 +19,10 @@ pub const Node = struct {
     parent: ?*Node,
     children: ChildList,
     count: usize,
-    level: LevelT,
-    max_depth: LevelT,
+    node_level: LevelT,
+    max_node_level: LevelT,
 
-    pub fn init(allocator: Allocator, parent: ?*Node, value: u8, level: LevelT) *Node {
+    pub fn init(allocator: Allocator, parent: ?*Node, value: u8, node_level: LevelT) *Node {
         const children = ChildList.init(allocator);
         const node = allocator.create(Node) catch unreachable;
         node.* = Node{
@@ -31,8 +31,8 @@ pub const Node = struct {
             .parent = parent,
             .children = children,
             .count = 0,
-            .level = level,
-            .max_depth = 0,
+            .node_level = node_level,
+            .max_node_level = 0,
         };
         return node;
     }
@@ -47,35 +47,54 @@ pub const Node = struct {
         self.allocator.destroy(self);
     }
 
-    pub fn reportMaxDepth(self: *Node, max_depth: LevelT) void {
-        if (max_depth > self.max_depth)
-            self.max_depth = max_depth;
+    pub fn reportMaxNodeLevel(self: *Node, max_node_level: LevelT) void {
+        if (max_node_level > self.max_node_level)
+            self.max_node_level = max_node_level - self.node_level;
 
         if (self.parent) |parent_node|
-            parent_node.reportMaxDepth(max_depth);
+            parent_node.reportMaxNodeLevel(max_node_level);
     }
 
-    pub fn addBytes(self: *Node, bytes: []const u8) !void {
+    pub fn reportMaxNodeLevel2(self: *Node) void {
+        self.max_node_level += 1;
+
+        if (self.parent) |parent_node|
+            parent_node.reportMaxNodeLevel2();
+    }
+
+    pub fn addBytes(self: *Node, bytes: []const u8, max_parse_level: LevelT) !void {
         self.count += 1;
         if (bytes.len == 0)
             return;
 
         const key = bytes[0];
-
         if (self.children.get(key)) |node| {
-            try node.addBytes(bytes[1..]);
+            try node.addBytes(bytes[1..], max_parse_level);
             return;
         }
 
-        const new_level: LevelT = self.level + 1;
+        if (self.node_level >= max_parse_level) {
+            // print("max_parse_level reached: {d}={d}\n", .{ self.node_level, max_parse_level });
+            return;
+        }
+
+        const new_level: LevelT = self.node_level + 1;
         var child = Node.init(self.allocator, self, bytes[0], new_level);
-        try child.addBytes(bytes[1..]);
+        try child.addBytes(bytes[1..], max_parse_level);
         try self.children.put(key, child);
 
-        self.reportMaxDepth(new_level);
+        self.reportMaxNodeLevel(new_level);
+        // self.reportMaxNodeLevel2();
     }
 
-    pub fn show(self: *const Node, level: LevelT, max_depth: LevelT, is_last: bool, prefix_path: *const PrefixPathT) !void {
+    pub fn show(
+        self: *const Node,
+        cur_level: LevelT, // Recursive Traverse
+        max_show_level: LevelT,
+        arg_min_count_level: usize,
+        is_last: bool,
+        prefix_path: *const PrefixPathT,
+    ) !void {
         // https://stackoverflow.com/questions/21924487/how-get-ascii-characters-similar-to-output-of-the-linux-command-tree
         // Char: '├' => $'\342\224\234'
         // Char: '─' => $'\342\224\200'
@@ -83,46 +102,58 @@ pub const Node = struct {
         // Char: ' ' => $'\302\240'
         // Char: '└' => $'\342\224\224'
 
-        if (level > 0)
-            for (0..(level - 1)) |n|
+        if (cur_level > 0)
+            for (0..(cur_level - 1)) |n|
                 print("{s}    ", .{prefix_path.items[n]});
 
-        if (self.level == 0) {
+        if (self.node_level == 0) {
             @branchHint(.unlikely);
-            print("root c={d} d={d} ({d})\n", .{
+            print("root count={d} depth={d} children={d}\n", .{
                 self.count,
-                self.max_depth,
+                self.max_node_level,
                 self.children.count(),
             });
         } else {
             const iprefix = if (is_last) "└" else "├";
-            print("{s}─ 0x{X:0>2} c={d} d={} ({d})\n", .{
+            print("{s}─ 0x{X:0>2} count={d} level={d} depth={d} children={d}\n", .{
                 iprefix,
                 self.value,
                 self.count,
-                self.max_depth,
+                self.node_level,
+                self.max_node_level,
                 self.children.count(),
             });
         }
 
-        if (level >= max_depth) {
+        if (cur_level >= max_show_level) {
             return;
         }
 
+        // Sort by key.
         var iter = self.children.iterator();
-        var keys = std.ArrayList(u8).init(self.allocator);
+        var keys = ArrayList(u8).init(self.allocator);
         defer keys.deinit();
         while (iter.next()) |entry|
             try keys.append(entry.key_ptr.*);
-        std.mem.sort(u8, keys.items, {}, comptime std.sort.asc_u8);
+        std.mem.sort(u8, keys.items, {}, comptime std.sort.asc(u8));
 
-        const child_len = self.children.count();
-        var n: usize = 0;
+        // Filter
+        var filered = ArrayList(*Node).init(self.allocator);
+        defer filered.deinit();
         for (keys.items) |key| {
-            const child = self.children.get(key).?;
+            if (self.children.get(key)) |child| {
+                if (child.count >= arg_min_count_level) {
+                    try filered.append(child);
+                }
+            }
+        }
 
-            n += 1;
-            const child_is_last = n == child_len;
+        const child_len = filered.items.len;
+        var loop_n: usize = 0;
+        for (filered.items) |child| {
+            loop_n += 1;
+
+            const child_is_last = loop_n == child_len;
 
             var new_path = try PrefixPathT.initCapacity(self.allocator, prefix_path.items.len);
             defer new_path.deinit();
@@ -130,7 +161,7 @@ pub const Node = struct {
 
             try new_path.append(if (child_is_last) " " else "│");
 
-            try child.show(level + 1, max_depth, child_is_last, &new_path);
+            try child.show(cur_level + 1, max_show_level, arg_min_count_level, child_is_last, &new_path);
         }
     }
 };
