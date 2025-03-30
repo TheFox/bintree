@@ -154,14 +154,14 @@ const UnmanagedXpath = struct {
 };
 
 fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
-    print("Xpath scanner\n", .{});
+    // print("Xpath scanner\n", .{});
     const tokenz = try scanner(allocator, query);
     defer tokenz.deinit();
 
-    print("Xpath tokenz\n", .{});
-    for (tokenz.items) |token| {
-        print("token: {any}\n", .{token});
-    }
+    // print("Xpath tokenz\n", .{});
+    // for (tokenz.items) |token| {
+    //     print("token: {any}\n", .{token});
+    // }
 
     const xpath = allocator.create(UnmanagedXpath) catch unreachable;
     xpath.* = UnmanagedXpath{
@@ -169,13 +169,13 @@ fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
         .xtype = .root,
     };
 
-    print("Xpath build\n", .{});
+    // print("Xpath build\n", .{});
 
     var currx: *UnmanagedXpath = xpath;
     var pre_tt: TokenType = .init;
     var pre_stt: XsubType = .xinit;
     for (tokenz.items) |token| {
-        print("currx: {any} -> {any} ({any})\n", .{ currx.xtype, token.ttype, token.xsubtype });
+        // print("currx: {any} -> {any} ({any})\n", .{ currx.xtype, token.ttype, token.xsubtype });
         // print("token: {any}\n", .{token});
 
         switch (token.ttype) {
@@ -190,7 +190,7 @@ fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
                 currx = subpath;
             },
             .xtype => {
-                print("-> xtype: {any} -> {any}\n", .{ currx.xtype, token.xsubtype });
+                // print("-> xtype: {any} -> {any}\n", .{ currx.xtype, token.xsubtype });
                 currx.xtype = switch (token.xsubtype) {
                     .xinit => .init,
                     .xselect => .select,
@@ -199,30 +199,32 @@ fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
                 };
             },
             .number => {
-                const old = currx.value;
+                // const old = currx.value;
                 currx.value = switch (pre_stt) {
                     .xinit => null,
                     .xselect => try parseInt(u16, token.value[0..token.vlen], 16),
                     .xgroup => try parseInt(u16, token.value[0..token.vlen], 10),
                     .xany => null,
                 };
-                print("-> number: {any} -> {any}\n", .{
-                    old,
-                    currx.value,
-                });
+                // print("-> number: {any} -> {any}\n", .{
+                //     old,
+                //     currx.value,
+                // });
             },
         }
         // print("token: {any}\n", .{token});
-        print("\n\n", .{});
+        // print("\n\n", .{});
 
         pre_tt = token.ttype;
         pre_stt = token.xsubtype;
     }
 
-    xpath.xprint();
+    // xpath.xprint();
 
     return xpath;
 }
+
+pub const XpathList = *ArrayList(UnmanagedXpath);
 
 test "null xpath" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -247,7 +249,7 @@ test "simple_xpath" {
     try expect(xpath.xtype == .root);
 
     if (xpath.next) |xpath1| {
-        print("xpath1.xtype: {any}\n", .{xpath1});
+        // print("xpath1.xtype: {any}\n", .{xpath1});
         try expect(xpath1.xtype == .select);
         try expect(xpath1.value == 1);
 
@@ -263,7 +265,8 @@ test "simple_xpath" {
 //     const allocator = gpa.allocator();
 //     defer _ = gpa.deinit();
 
-//     const xpath = xpathFromUserInput(allocator, "/s01/g3");
+//     const xpath = try Xpath(allocator, "/s01/g3");
+//     defer xpath.deinit();
 
 //     var node = tree.RootNode(allocator);
 //     defer node.deinit();
