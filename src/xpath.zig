@@ -4,6 +4,69 @@ const tree = @import("tree.zig");
 const Allocator = std.mem.Allocator;
 const expect = std.testing.expect;
 const parseInt = std.fmt.parseInt;
+const ArrayList = std.ArrayList;
+
+const TokenType = enum {
+    slash,
+    number,
+    xtype,
+};
+
+const XsubType = enum {
+    xselect,
+    xgroup,
+    xany,
+};
+
+const Token = struct {
+    ttype: TokenType,
+    xsubtype: XsubType,
+    value: u8,
+
+    fn deinit(self: *Token) void {
+        print("Token.deinit({s})\n", .{self.value});
+    }
+};
+
+fn scanner(allocator: Allocator, query: []const u8) !ArrayList(Token) {
+    var tokenz = ArrayList(Token).init(allocator);
+    var pre_tt: TokenType = undefined;
+    for (query) |qc| {
+        print("query c: '{c}'\n", .{qc});
+        var ttype: TokenType = undefined;
+        var xsubtype: XsubType = undefined;
+        switch (qc) {
+            '/' => {
+                ttype = .slash;
+            },
+            '0'...'9' => {
+                ttype = .number;
+            },
+            's', 'g', '.' => {
+                if (pre_tt == .slash) {
+                    ttype = .xtype;
+                    xsubtype = switch (qc) {
+                        's' => .xselect,
+                        'g' => .xgroup,
+                        '.' => .xany,
+                        else => unreachable,
+                    };
+                } else {
+                    unreachable;
+                }
+            },
+            else => unreachable,
+        }
+        const token = Token{
+            .ttype = ttype,
+            .xsubtype = xsubtype,
+            .value = qc,
+        };
+        try tokenz.append(token);
+        pre_tt = token.ttype;
+    }
+    return tokenz;
+}
 
 const UnmanagedXpath = struct {
     allocator: Allocator,
@@ -15,6 +78,7 @@ const UnmanagedXpath = struct {
         select,
         range,
         group,
+        any,
     },
 
     pub fn deinit(self: *UnmanagedXpath) void {
@@ -25,7 +89,7 @@ const UnmanagedXpath = struct {
     }
 };
 
-fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
+fn Xpath1(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
     print("Xpath({s})\n", .{query});
 
     const xpath = allocator.create(UnmanagedXpath) catch unreachable;
@@ -41,16 +105,17 @@ fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
             '/' => {
                 qp += 1;
                 print("next: '{s}'\n", .{query[qp..]});
-                // xpath.next = Xpath(allocator, query[qp..]);
+                xpath.next = try Xpath(allocator, query[qp..]);
             },
             's' => {
                 // Select
+                xpath.xtype = .select;
                 qp += 1;
                 const end = qp + 2;
                 print("select s: '{s}'\n", .{query[qp..end]});
                 const c = try parseInt(u8, query[qp..end], 16);
                 print("select c: {X}\n", .{c});
-                xpath.xtype = .select;
+                xpath.value = c;
                 qp += 2;
             },
             'g' => {
@@ -67,6 +132,9 @@ fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
                 }
                 xpath.group = try parseInt(usize, buf[0..bn], 10);
             },
+            '.' => {
+                // Any
+            },
             else => {
                 print("Unknown query character: '{c}'\n", .{qc});
                 @panic("Unknown query character");
@@ -76,26 +144,72 @@ fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
     return xpath;
 }
 
-test "null xpath" {
+fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
+    const tokenz = try scanner(allocator, query);
+    defer tokenz.deinit();
+}
+
+test "scanner" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const xpath = Xpath(allocator, "/");
-    defer xpath.deinit();
+    const tokenz = try scanner(allocator, "/s30/g5/.");
+    defer tokenz.deinit();
 
-    try expect(xpath.value == null);
-    try expect(xpath.next == null);
+    try expect(tokenz.items.len == 9);
+
+    try expect(tokenz.items[0].value == '/');
+
+    try expect(tokenz.items[0].ttype == .slash);
+    try expect(tokenz.items[1].ttype == .xtype);
+    try expect(tokenz.items[2].ttype == .number);
+    try expect(tokenz.items[3].ttype == .number);
+    try expect(tokenz.items[4].ttype == .slash);
+    try expect(tokenz.items[5].ttype == .xtype);
+    try expect(tokenz.items[6].ttype == .number);
+    try expect(tokenz.items[7].ttype == .slash);
+    try expect(tokenz.items[8].ttype == .xtype);
+
+    try expect(tokenz.items[1].xsubtype == .xselect);
+    try expect(tokenz.items[5].xsubtype == .xgroup);
+    try expect(tokenz.items[8].xsubtype == .xany);
 }
 
-test "simple xpath" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+// test "null xpath" {
+//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+//     const allocator = gpa.allocator();
+//     defer _ = gpa.deinit();
 
-    const xpath = try Xpath(allocator, "/s01/g3");
-    defer xpath.deinit();
-}
+//     const xpath = Xpath(allocator, "/");
+//     defer xpath.deinit();
+
+//     try expect(xpath.value == null);
+//     try expect(xpath.next == null);
+// }
+
+// test "simple xpath" {
+//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+//     const allocator = gpa.allocator();
+//     defer _ = gpa.deinit();
+
+//     const xpath = try Xpath(allocator, "/s01/g3");
+//     defer xpath.deinit();
+
+//     if (xpath.next) |xpath1| {
+//         try expect(xpath1.value == 1);
+//         try expect(xpath1.xtype == .select);
+
+//         if (xpath1.next) |xpath2| {
+//             try expect(xpath2.xtype == .group);
+//             try expect(xpath2.group == 3);
+//         } else {
+//             try expect(false);
+//         }
+//     } else {
+//         try expect(false);
+//     }
+// }
 
 // test "group node with xpath" {
 //     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
