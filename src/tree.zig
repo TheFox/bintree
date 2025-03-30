@@ -9,6 +9,7 @@ const PrefixPathT = types.PrefixPathT;
 const LevelT = types.LevelT;
 const ChildList = AutoHashMap(u8, *Node);
 const expect = std.testing.expect;
+const xpath = @import("xpath.zig");
 
 pub fn RootNode(allocator: Allocator) *Node {
     return Node.init(allocator, null, 0, 0);
@@ -56,13 +57,6 @@ pub const Node = struct {
             parent_node.reportMaxNodeLevel(max_node_level);
     }
 
-    pub fn reportMaxNodeLevel2(self: *Node) void {
-        self.max_node_level += 1;
-
-        if (self.parent) |parent_node|
-            parent_node.reportMaxNodeLevel2();
-    }
-
     pub fn addBytes(self: *Node, bytes: []const u8, max_parse_level: LevelT) !void {
         self.count += 1;
         if (bytes.len == 0)
@@ -85,7 +79,6 @@ pub const Node = struct {
         try self.children.put(key, child);
 
         self.reportMaxNodeLevel(new_level);
-        // self.reportMaxNodeLevel2();
     }
 
     pub fn show(
