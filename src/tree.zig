@@ -6,6 +6,8 @@ const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 const eql = std.mem.eql;
 const bufPrint = std.fmt.bufPrint;
+// const formatSliceHexUpper = std.fmt.formatSliceHexUpper;
+const fmtSliceHexUpper = std.fmt.fmtSliceHexUpper;
 const types = @import("types.zig");
 const PrefixPathT = types.PrefixPathT;
 const LevelT = types.LevelT;
@@ -29,7 +31,7 @@ pub const Node = struct {
     count: usize,
     node_level: LevelT,
     max_node_level: LevelT,
-    // parse_xpaths: XpathList = XpathList.init(),
+    // parse_xpaths: ?*XpathList,
 
     pub fn init(allocator: Allocator, parent: ?*Node) *Node {
         const children = ChildList.init(allocator);
@@ -42,7 +44,7 @@ pub const Node = struct {
             .count = 0,
             .node_level = 0,
             .max_node_level = 0,
-            // .parse_xpaths = parse_xpaths,
+            //.parse_xpaths.* = allocator.create(XpathList) catch unreachable;
         };
         return node;
     }
@@ -54,6 +56,12 @@ pub const Node = struct {
             node.deinit();
         }
         self.children.deinit();
+
+        // for (self.parse_xpaths.items) |xpath_i| {
+        //     xpath_i.deinit();
+        // }
+        // self.parse_xpaths.deinit();
+
         self.allocator.destroy(self);
     }
 
@@ -118,12 +126,13 @@ pub const Node = struct {
                 self.children.count(),
             });
         } else {
-            const hex_val: [128]u8 = undefined;
-            const hex_len = try bufPrint(&hex_val, "{X:0>2}", .{self.value});
+            // const hex_val: [128]u8 = undefined;
+            // const hex_len = try formatSliceHexUpper(&hex_val, "{}", .{self.value});
             const iprefix = if (is_last) "└" else "├";
-            print("{s}─ 0x{s} count={d} level={d} depth={d} children={d}\n", .{
+            print("{s}─ 0x{} count={d} level={d} depth={d} children={d}\n", .{
                 iprefix,
-                hex_val[0..hex_len],
+                // hex_val[0..hex_len],
+                fmtSliceHexUpper(self.value[0..self.vlen]),
                 self.count,
                 self.node_level,
                 self.max_node_level,

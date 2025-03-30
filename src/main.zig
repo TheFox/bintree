@@ -207,7 +207,7 @@ pub fn main() !void {
 
 fn print_help() void {
     const help =
-        \\Usage: btreeprint [-h] -m <string> [-f <path> [-f <path> ...]] [-l <number>] [-s <number>]
+        \\Usage: btreeprint [-h] [-m <string>] [-f <path> [-f <path> ...]] [-l <number>] [-s <number>]
         \\
         \\Options:
         \\-h               Print this help.
@@ -223,7 +223,7 @@ fn print_help() void {
         \\-i <character>   Character to ignore while parsing.
         \\-ix <hex>        Character to ignore while parsing.
         \\-g <xpath>       Group using Xpath.
-        \\-s <xpath>       Select using Xpath.
+        // \\-s <xpath>       Select using Xpath.
     ;
     print(help ++ "\n", .{});
 }

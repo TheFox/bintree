@@ -224,7 +224,7 @@ fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
     return xpath;
 }
 
-pub const XpathList = *ArrayList(UnmanagedXpath);
+pub const XpathList = ArrayList(UnmanagedXpath);
 
 test "null xpath" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
