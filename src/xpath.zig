@@ -107,7 +107,6 @@ test "scanner" {
     try expect(tokenz.items[4].xsubtype == .xgroup);
     try expect(tokenz.items[7].xsubtype == .xany);
 
-    // try expect(tokenz.items[2].value == '/');
     var item = tokenz.items[2];
     try expect(eql(u8, item.value[0..item.vlen], "30"));
 
@@ -136,61 +135,6 @@ const UnmanagedXpath = struct {
     }
 };
 
-fn Xpath1(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
-    print("Xpath({s})\n", .{query});
-
-    const xpath = allocator.create(UnmanagedXpath) catch unreachable;
-    xpath.* = UnmanagedXpath{
-        .allocator = allocator,
-        .xtype = .root,
-    };
-    var qp: usize = 0;
-    while (qp < query.len) {
-        const qc = query[qp];
-        print("query char: '{c}' @ {d}\n", .{ qc, qp });
-        switch (qc) {
-            '/' => {
-                qp += 1;
-                print("next: '{s}'\n", .{query[qp..]});
-                xpath.next = try Xpath(allocator, query[qp..]);
-            },
-            's' => {
-                // Select
-                xpath.xtype = .select;
-                qp += 1;
-                const end = qp + 2;
-                print("select s: '{s}'\n", .{query[qp..end]});
-                const c = try parseInt(u8, query[qp..end], 16);
-                print("select c: {X}\n", .{c});
-                xpath.value = c;
-                qp += 2;
-            },
-            'g' => {
-                // Group
-                qp += 1;
-                var buf: [4096]u8 = undefined;
-                var bn: u16 = 0;
-                while (qp < query.len and bn < 4096 and query[qp] >= '0' and query[qp] <= '9') {
-                    print("group c: '{c}'\n", .{query[qp]});
-                    buf[bn] = query[qp];
-                    qp += 1;
-                    bn += 1;
-                    // print("group cn: '{c}'\n", .{query[qp]});
-                }
-                xpath.group = try parseInt(usize, buf[0..bn], 10);
-            },
-            '.' => {
-                // Any
-            },
-            else => {
-                print("Unknown query character: '{c}'\n", .{qc});
-                @panic("Unknown query character");
-            },
-        }
-    }
-    return xpath;
-}
-
 fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
     const tokenz = try scanner(allocator, query);
     defer tokenz.deinit();
@@ -203,8 +147,6 @@ fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
 
     var curr: *UnmanagedXpath = xpath;
     var pre_tt: TokenType = undefined;
-    // var buf: [128]u8 = undefined;
-    // var bn: u8 = 0;
 
     for (tokenz.items) |token| {
         print("token: {any}\n", .{token});
