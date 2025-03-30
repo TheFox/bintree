@@ -153,7 +153,7 @@ const UnmanagedXpath = struct {
     }
 };
 
-fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
+pub fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
     // print("Xpath scanner\n", .{});
     const tokenz = try scanner(allocator, query);
     defer tokenz.deinit();
@@ -224,7 +224,7 @@ fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
     return xpath;
 }
 
-pub const XpathList = ArrayList(UnmanagedXpath);
+pub const XpathList = ArrayList(*UnmanagedXpath);
 
 test "null xpath" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

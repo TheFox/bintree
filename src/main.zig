@@ -7,11 +7,17 @@ const eql = std.mem.eql;
 const parseInt = std.fmt.parseInt;
 const tree = @import("tree.zig");
 const types = @import("types.zig");
+const xpath = @import("xpath.zig");
+const XpathList = xpath.XpathList;
+const Xpath = xpath.Xpath;
 const PrefixPathT = types.PrefixPathT;
 const LevelT = types.LevelT;
 const CharInputMode = enum(u2) { unknown, binary, hex };
+const run_mode = @import("builtin").mode;
 
 pub fn main() !void {
+    print("run_mode: {any}\n", .{run_mode});
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
@@ -28,6 +34,26 @@ pub fn main() !void {
 
     var ignores = ArrayList(u8).init(allocator);
     defer ignores.deinit();
+
+    // var parse_rules: *XpathList = undefined;
+    // parse_rules.* = allocator.create(XpathList) catch unreachable;
+    // defer parse_rules.deinit();
+
+    // var parse_rules = allocator.create(XpathList) catch unreachable;
+    // parse_rules.* = XpathList.init(allocator);
+    // defer {
+    //     parse_rules.deinit();
+    //     allocator.destroy(parse_rules);
+    // }
+
+    var parse_rules = XpathList.init(allocator);
+    if (run_mode == .Debug) {
+        defer {
+            for (parse_rules.items) |item|
+                item.deinit();
+            parse_rules.deinit();
+        }
+    }
 
     var arg_verbose_level: u8 = 0;
     var arg_delimiter: u8 = '\n';
@@ -119,6 +145,10 @@ pub fn main() !void {
                     print("ignore character from hex: 0x{X}\n", .{c});
                 try ignores.append(c);
             }
+        } else if (eql(u8, arg, "-r")) {
+            if (args_iter.next()) |next_arg| {
+                try parse_rules.append(try Xpath(allocator, next_arg));
+            }
         } else {
             print("Unknown argument: {s}\n", .{arg});
             return;
@@ -132,6 +162,11 @@ pub fn main() !void {
         print("arg_max_show_level: {d}\n", .{arg_max_show_level});
         print("arg_min_count_level: {d}\n", .{arg_min_count_level});
     }
+    if (arg_verbose_level >= 2) {
+        for (parse_rules.items) |xpath_i| {
+            print("xpath: {any}\n", .{xpath_i});
+        }
+    }
     if (arg_single_char_input_mode == .unknown) {
         print("ERROR: please provide a input mode -m bin or -m hex\n", .{});
         return;
@@ -139,7 +174,9 @@ pub fn main() !void {
 
     var root = tree.RootNode(allocator);
     // No need to free everything at the end because the process is going to exit anyway.
-    defer root.deinit();
+    if (run_mode == .Debug) {
+        defer root.deinit();
+    }
 
     for (files.items) |file_path| {
         print("input file: {s}\n", .{file_path});
@@ -207,7 +244,7 @@ pub fn main() !void {
 
 fn print_help() void {
     const help =
-        \\Usage: btreeprint [-h] [-m <string>] [-f <path> [-f <path> ...]] [-l <number>] [-s <number>]
+        \\Usage: btreeprint [-h] [-m <string>] [-f <path> [-f <path> ...]] ...more options
         \\
         \\Options:
         \\-h               Print this help.
@@ -222,8 +259,7 @@ fn print_help() void {
         \\-t <number>      Minimum node-count.
         \\-i <character>   Character to ignore while parsing.
         \\-ix <hex>        Character to ignore while parsing.
-        \\-g <xpath>       Group using Xpath.
-        // \\-s <xpath>       Select using Xpath.
+        \\-r <xpath>       Parse rules using Xpath.
     ;
     print(help ++ "\n", .{});
 }

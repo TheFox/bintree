@@ -11,11 +11,11 @@ const fmtSliceHexUpper = std.fmt.fmtSliceHexUpper;
 const types = @import("types.zig");
 const PrefixPathT = types.PrefixPathT;
 const LevelT = types.LevelT;
-const ChildList = AutoHashMap(u8, *Node);
 const expect = std.testing.expect;
 const xpath = @import("xpath.zig");
 const XpathList = xpath.XpathList;
 const VAL_MAX_LEN = 128;
+const ChildList = AutoHashMap(NodeValue, *Node);
 const NodeValue = [VAL_MAX_LEN]u8;
 
 pub fn RootNode(allocator: Allocator) *Node {
@@ -31,7 +31,7 @@ pub const Node = struct {
     count: usize,
     node_level: LevelT,
     max_node_level: LevelT,
-    // parse_xpaths: ?*XpathList,
+    // parse_rules: ?*XpathList,
 
     pub fn init(allocator: Allocator, parent: ?*Node) *Node {
         const children = ChildList.init(allocator);
@@ -44,7 +44,7 @@ pub const Node = struct {
             .count = 0,
             .node_level = 0,
             .max_node_level = 0,
-            //.parse_xpaths.* = allocator.create(XpathList) catch unreachable;
+            //.parse_rules.* = allocator.create(XpathList) catch unreachable;
         };
         return node;
     }
@@ -57,10 +57,10 @@ pub const Node = struct {
         }
         self.children.deinit();
 
-        // for (self.parse_xpaths.items) |xpath_i| {
+        // for (self.parse_rules.items) |xpath_i| {
         //     xpath_i.deinit();
         // }
-        // self.parse_xpaths.deinit();
+        // self.parse_rules.deinit();
 
         self.allocator.destroy(self);
     }
@@ -73,30 +73,34 @@ pub const Node = struct {
             parent_node.reportMaxNodeLevel(max_node_level);
     }
 
-    pub fn addBytes(self: *Node, bytes: []const u8, max_parse_level: LevelT) !void {
-        self.count += 1;
-        if (bytes.len == 0)
-            return;
+    pub fn addBytes(self: *Node, bytes: NodeValue, max_parse_level: LevelT) !void {
+        _ = self;
+        _ = bytes;
+        _ = max_parse_level;
+        // TODO: rewrite using parse_rules
+        // self.count += 1;
+        // if (bytes.len == 0)
+        //     return;
 
-        const key = bytes[0];
-        if (self.children.get(key)) |node| {
-            try node.addBytes(bytes[1..], max_parse_level);
-            return;
-        }
+        // const key = bytes[0..1]; // TODO
+        // if (self.children.get(key)) |node| {
+        //     try node.addBytes(bytes[1..], max_parse_level);
+        //     return;
+        // }
 
-        if (self.node_level >= max_parse_level) {
-            return;
-        }
+        // if (self.node_level >= max_parse_level) {
+        //     return;
+        // }
 
-        var child = Node.init(self.allocator, self);
-        child.node_level = self.node_level + 1;
-        child.vlen = 1;
-        @memcpy(child.value[0..1], bytes[0..1]);
+        // var child = Node.init(self.allocator, self);
+        // child.node_level = self.node_level + 1;
+        // child.vlen = 1;
+        // @memcpy(child.value[0..1], bytes[0..1]); // TODO
 
-        try child.addBytes(bytes[1..], max_parse_level);
+        // try child.addBytes(bytes[1..], max_parse_level); // TODO
 
-        try self.children.put(key, child);
-        self.reportMaxNodeLevel(child.node_level);
+        // try self.children.put(key, child);
+        // self.reportMaxNodeLevel(child.node_level);
     }
 
     pub fn show(
