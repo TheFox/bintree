@@ -5,16 +5,18 @@ const Allocator = std.mem.Allocator;
 const expect = std.testing.expect;
 const parseInt = std.fmt.parseInt;
 const ArrayList = std.ArrayList;
-const TOKEN_VAL_MAX_LEN = 128;
+const TOKEN_VAL_MAX_LEN = 8;
 const eql = std.mem.eql;
 
 const TokenType = enum {
+    init,
     slash,
     number,
     xtype,
 };
 
 const XsubType = enum {
+    xinit,
     xselect,
     xgroup,
     xany,
@@ -33,11 +35,11 @@ const Token = struct {
 
 fn scanner(allocator: Allocator, query: []const u8) !ArrayList(Token) {
     var tokenz = ArrayList(Token).init(allocator);
-    var pre_tt: TokenType = undefined;
+    var pre_tt: TokenType = .init;
     var qpos: usize = 0;
     while (qpos < query.len) {
         const qc = query[qpos];
-        print("query c: '{c}'\n", .{qc});
+        // print("query c: {d} '{c}' {any}\n", .{ qpos, qc, pre_tt });
 
         var token = Token{
             .ttype = undefined,
@@ -49,34 +51,40 @@ fn scanner(allocator: Allocator, query: []const u8) !ArrayList(Token) {
                 token.ttype = .slash;
                 qpos += 1;
             },
+            's', 'g', '.' => {
+                switch (pre_tt) {
+                    .slash => {
+                        token.ttype = .xtype;
+
+                        token.xsubtype = switch (qc) {
+                            's' => .xselect,
+                            'g' => .xgroup,
+                            '.' => .xany,
+                            else => unreachable,
+                        };
+                    },
+                    else => unreachable,
+                }
+
+                qpos += 1;
+            },
             '0'...'9' => {
                 token.ttype = .number;
 
                 var qpos_fwd = qpos;
                 while (qpos_fwd < query.len and token.vlen < TOKEN_VAL_MAX_LEN and query[qpos_fwd] >= '0' and query[qpos_fwd] <= '9') : (qpos_fwd += 1) {
-                    print("fwd: '{c}' {d} {any} {any}\n", .{ query[qpos_fwd], qpos_fwd, query[qpos_fwd] >= '0', query[qpos_fwd] <= '9' });
+                    // print("fwd: '{c}' {d} {any} {any}\n", .{ query[qpos_fwd], qpos_fwd, query[qpos_fwd] >= '0', query[qpos_fwd] <= '9' });
                     token.value[token.vlen] = query[qpos_fwd];
                     token.vlen += 1;
                 }
-                print("number value: '{s}'\n", .{token.value[0..token.vlen]});
+                // print("number value: '{s}'\n", .{token.value[0..token.vlen]});
                 qpos = qpos_fwd;
             },
-            's', 'g', '.' => {
-                if (pre_tt == .slash) {
-                    token.ttype = .xtype;
 
-                    token.xsubtype = switch (qc) {
-                        's' => .xselect,
-                        'g' => .xgroup,
-                        '.' => .xany,
-                        else => unreachable,
-                    };
-                } else unreachable;
-
-                qpos += 1;
-            },
             else => unreachable,
         }
+
+        // print("new token: {any}\n", .{token});
 
         try tokenz.append(token);
         pre_tt = token.ttype;
@@ -117,12 +125,12 @@ test "scanner" {
 const UnmanagedXpath = struct {
     allocator: Allocator,
     next: ?*UnmanagedXpath = null,
-    value: ?u8 = null,
-    group: ?usize = null,
+    value: ?u16 = null,
     xtype: enum {
+        init,
         root,
+        // level,
         select,
-        // range,
         group,
         any,
     },
@@ -133,11 +141,27 @@ const UnmanagedXpath = struct {
         }
         self.allocator.destroy(self);
     }
+
+    pub fn xprint(self: *UnmanagedXpath) void {
+        print("UnmanagedXpath: v={any} xtype={any}\n", .{
+            self.value,
+            self.xtype,
+        });
+        if (self.next) |sub| {
+            sub.xprint();
+        }
+    }
 };
 
 fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
+    print("Xpath scanner\n", .{});
     const tokenz = try scanner(allocator, query);
     defer tokenz.deinit();
+
+    print("Xpath tokenz\n", .{});
+    for (tokenz.items) |token| {
+        print("token: {any}\n", .{token});
+    }
 
     const xpath = allocator.create(UnmanagedXpath) catch unreachable;
     xpath.* = UnmanagedXpath{
@@ -145,28 +169,57 @@ fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
         .xtype = .root,
     };
 
-    var curr: *UnmanagedXpath = xpath;
-    var pre_tt: TokenType = undefined;
+    print("Xpath build\n", .{});
 
+    var currx: *UnmanagedXpath = xpath;
+    var pre_tt: TokenType = .init;
+    var pre_stt: XsubType = .xinit;
     for (tokenz.items) |token| {
-        print("token: {any}\n", .{token});
+        print("currx: {any} -> {any} ({any})\n", .{ currx.xtype, token.ttype, token.xsubtype });
+        // print("token: {any}\n", .{token});
 
         switch (token.ttype) {
+            .init => unreachable,
             .slash => {
                 const subpath = allocator.create(UnmanagedXpath) catch unreachable;
                 subpath.* = UnmanagedXpath{
                     .allocator = allocator,
-                    .xtype = .root,
+                    .xtype = .init,
                 };
-                xpath.next = subpath;
-                curr = subpath;
+                currx.next = subpath;
+                currx = subpath;
             },
-            .number => {},
-            // .xtype => {},
+            .xtype => {
+                print("-> xtype: {any} -> {any}\n", .{ currx.xtype, token.xsubtype });
+                currx.xtype = switch (token.xsubtype) {
+                    .xinit => .init,
+                    .xselect => .select,
+                    .xgroup => .group,
+                    .xany => .any,
+                };
+            },
+            .number => {
+                const old = currx.value;
+                currx.value = switch (pre_stt) {
+                    .xinit => null,
+                    .xselect => try parseInt(u16, token.value[0..token.vlen], 16),
+                    .xgroup => try parseInt(u16, token.value[0..token.vlen], 10),
+                    .xany => null,
+                };
+                print("-> number: {any} -> {any}\n", .{
+                    old,
+                    currx.value,
+                });
+            },
         }
+        // print("token: {any}\n", .{token});
+        print("\n\n", .{});
 
         pre_tt = token.ttype;
+        pre_stt = token.xsubtype;
     }
+
+    xpath.xprint();
 
     return xpath;
 }
@@ -179,32 +232,31 @@ test "null xpath" {
     const xpath = try Xpath(allocator, "/");
     defer xpath.deinit();
 
-    try expect(xpath.value == null);
-    try expect(xpath.next == null);
+    try expect(xpath.next != null);
+    try expect(xpath.next.?.xtype == .init);
 }
 
-// test "simple xpath" {
-//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-//     const allocator = gpa.allocator();
-//     defer _ = gpa.deinit();
+test "simple_xpath" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
 
-//     const xpath = try Xpath(allocator, "/s01/g3");
-//     defer xpath.deinit();
+    const xpath = try Xpath(allocator, "/s01/g3");
+    defer xpath.deinit();
 
-//     if (xpath.next) |xpath1| {
-//         try expect(xpath1.value == 1);
-//         try expect(xpath1.xtype == .select);
+    try expect(xpath.xtype == .root);
 
-//         if (xpath1.next) |xpath2| {
-//             try expect(xpath2.xtype == .group);
-//             try expect(xpath2.group == 3);
-//         } else {
-//             try expect(false);
-//         }
-//     } else {
-//         try expect(false);
-//     }
-// }
+    if (xpath.next) |xpath1| {
+        print("xpath1.xtype: {any}\n", .{xpath1});
+        try expect(xpath1.xtype == .select);
+        try expect(xpath1.value == 1);
+
+        if (xpath1.next) |xpath2| {
+            try expect(xpath2.xtype == .group);
+            try expect(xpath2.value == 3);
+        } else try expect(false);
+    } else try expect(false);
+}
 
 // test "group node with xpath" {
 //     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
