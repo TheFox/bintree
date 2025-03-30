@@ -1,8 +1,10 @@
 const std = @import("std");
+const fmt = std.fmt;
 const ArrayList = std.ArrayList;
 const AutoHashMap = std.AutoHashMap;
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
+const eql = std.mem.eql;
 const bufPrint = std.fmt.bufPrint;
 const types = @import("types.zig");
 const PrefixPathT = types.PrefixPathT;
@@ -10,31 +12,37 @@ const LevelT = types.LevelT;
 const ChildList = AutoHashMap(u8, *Node);
 const expect = std.testing.expect;
 const xpath = @import("xpath.zig");
+const XpathList = xpath.XpathList;
+const VAL_MAX_LEN = 128;
+const NodeValue = [VAL_MAX_LEN]u8;
 
 pub fn RootNode(allocator: Allocator) *Node {
-    return Node.init(allocator, null, 0, 0);
+    return Node.init(allocator, null);
 }
 
 pub const Node = struct {
     allocator: Allocator,
-    value: u8,
+    value: NodeValue = undefined,
+    vlen: u8 = 0,
     parent: ?*Node,
     children: ChildList,
     count: usize,
     node_level: LevelT,
     max_node_level: LevelT,
+    // parse_xpaths: XpathList = XpathList.init(),
 
-    pub fn init(allocator: Allocator, parent: ?*Node, value: u8, node_level: LevelT) *Node {
+    pub fn init(allocator: Allocator, parent: ?*Node) *Node {
         const children = ChildList.init(allocator);
         const node = allocator.create(Node) catch unreachable;
         node.* = Node{
             .allocator = allocator,
-            .value = value,
+            // .value = undefined,
             .parent = parent,
             .children = children,
             .count = 0,
-            .node_level = node_level,
+            .node_level = 0,
             .max_node_level = 0,
+            // .parse_xpaths = parse_xpaths,
         };
         return node;
     }
@@ -69,16 +77,18 @@ pub const Node = struct {
         }
 
         if (self.node_level >= max_parse_level) {
-            // print("max_parse_level reached: {d}={d}\n", .{ self.node_level, max_parse_level });
             return;
         }
 
-        const new_level: LevelT = self.node_level + 1;
-        var child = Node.init(self.allocator, self, bytes[0], new_level);
-        try child.addBytes(bytes[1..], max_parse_level);
-        try self.children.put(key, child);
+        var child = Node.init(self.allocator, self);
+        child.node_level = self.node_level + 1;
+        child.vlen = 1;
+        @memcpy(child.value[0..1], bytes[0..1]);
 
-        self.reportMaxNodeLevel(new_level);
+        try child.addBytes(bytes[1..], max_parse_level);
+
+        try self.children.put(key, child);
+        self.reportMaxNodeLevel(child.node_level);
     }
 
     pub fn show(
@@ -108,10 +118,12 @@ pub const Node = struct {
                 self.children.count(),
             });
         } else {
+            const hex_val: [128]u8 = undefined;
+            const hex_len = try bufPrint(&hex_val, "{X:0>2}", .{self.value});
             const iprefix = if (is_last) "└" else "├";
-            print("{s}─ 0x{X:0>2} count={d} level={d} depth={d} children={d}\n", .{
+            print("{s}─ 0x{s} count={d} level={d} depth={d} children={d}\n", .{
                 iprefix,
-                self.value,
+                hex_val[0..hex_len],
                 self.count,
                 self.node_level,
                 self.max_node_level,
@@ -183,23 +195,23 @@ test "simple string" {
     try expect(node.children.count() == 1);
 
     if (node.children.get(1)) |subnode1| {
-        try expect(subnode1.value == 1);
         try expect(subnode1.children.count() == 1);
+        try expect(eql(u8, subnode1.value[0..subnode1.vlen], "\x01"));
 
         if (subnode1.children.get(2)) |subnode2| {
-            try expect(subnode2.value == 2);
             try expect(subnode2.children.count() == 2);
+            try expect(eql(u8, subnode2.value[0..subnode2.vlen], "\x02"));
 
             if (subnode2.children.get(3)) |subnode3| {
-                try expect(subnode3.value == 3);
                 try expect(subnode3.children.count() == 0);
+                try expect(eql(u8, subnode3.value[0..subnode3.vlen], "\x03"));
             } else {
                 try expect(false);
             }
 
             if (subnode2.children.get(4)) |subnode4| {
-                try expect(subnode4.value == 4);
                 try expect(subnode4.children.count() == 0);
+                try expect(eql(u8, subnode4.value[0..subnode4.vlen], "\x04"));
             } else {
                 try expect(false);
             }
