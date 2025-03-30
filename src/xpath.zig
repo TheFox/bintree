@@ -5,6 +5,8 @@ const Allocator = std.mem.Allocator;
 const expect = std.testing.expect;
 const parseInt = std.fmt.parseInt;
 const ArrayList = std.ArrayList;
+const TOKEN_VAL_MAX_LEN = 128;
+const eql = std.mem.eql;
 
 const TokenType = enum {
     slash,
@@ -21,7 +23,8 @@ const XsubType = enum {
 const Token = struct {
     ttype: TokenType,
     xsubtype: XsubType,
-    value: u8,
+    value: [TOKEN_VAL_MAX_LEN]u8 = undefined,
+    vlen: u8 = 0,
 
     fn deinit(self: *Token) void {
         print("Token.deinit({s})\n", .{self.value});
@@ -31,41 +34,85 @@ const Token = struct {
 fn scanner(allocator: Allocator, query: []const u8) !ArrayList(Token) {
     var tokenz = ArrayList(Token).init(allocator);
     var pre_tt: TokenType = undefined;
-    for (query) |qc| {
+    var qpos: usize = 0;
+    while (qpos < query.len) {
+        const qc = query[qpos];
         print("query c: '{c}'\n", .{qc});
-        var ttype: TokenType = undefined;
-        var xsubtype: XsubType = undefined;
+
+        var token = Token{
+            .ttype = undefined,
+            .xsubtype = undefined,
+        };
+
         switch (qc) {
             '/' => {
-                ttype = .slash;
+                token.ttype = .slash;
+                qpos += 1;
             },
             '0'...'9' => {
-                ttype = .number;
+                token.ttype = .number;
+
+                var qpos_fwd = qpos;
+                while (qpos_fwd < query.len and token.vlen < TOKEN_VAL_MAX_LEN and query[qpos_fwd] >= '0' and query[qpos_fwd] <= '9') : (qpos_fwd += 1) {
+                    print("fwd: '{c}' {d} {any} {any}\n", .{ query[qpos_fwd], qpos_fwd, query[qpos_fwd] >= '0', query[qpos_fwd] <= '9' });
+                    token.value[token.vlen] = query[qpos_fwd];
+                    token.vlen += 1;
+                }
+                print("number value: '{s}'\n", .{token.value[0..token.vlen]});
+                qpos = qpos_fwd;
             },
             's', 'g', '.' => {
                 if (pre_tt == .slash) {
-                    ttype = .xtype;
-                    xsubtype = switch (qc) {
+                    token.ttype = .xtype;
+
+                    token.xsubtype = switch (qc) {
                         's' => .xselect,
                         'g' => .xgroup,
                         '.' => .xany,
                         else => unreachable,
                     };
-                } else {
-                    unreachable;
-                }
+                } else unreachable;
+
+                qpos += 1;
             },
             else => unreachable,
         }
-        const token = Token{
-            .ttype = ttype,
-            .xsubtype = xsubtype,
-            .value = qc,
-        };
+
         try tokenz.append(token);
         pre_tt = token.ttype;
     }
     return tokenz;
+}
+
+test "scanner" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    const tokenz = try scanner(allocator, "/s30/g5/.");
+    defer tokenz.deinit();
+
+    try expect(tokenz.items.len == 8);
+
+    try expect(tokenz.items[0].ttype == .slash);
+    try expect(tokenz.items[1].ttype == .xtype);
+    try expect(tokenz.items[2].ttype == .number);
+    try expect(tokenz.items[3].ttype == .slash);
+    try expect(tokenz.items[4].ttype == .xtype);
+    try expect(tokenz.items[5].ttype == .number);
+    try expect(tokenz.items[6].ttype == .slash);
+    try expect(tokenz.items[7].ttype == .xtype);
+
+    try expect(tokenz.items[1].xsubtype == .xselect);
+    try expect(tokenz.items[4].xsubtype == .xgroup);
+    try expect(tokenz.items[7].xsubtype == .xany);
+
+    // try expect(tokenz.items[2].value == '/');
+    var item = tokenz.items[2];
+    try expect(eql(u8, item.value[0..item.vlen], "30"));
+
+    item = tokenz.items[5];
+    try expect(eql(u8, item.value[0..item.vlen], "5"));
 }
 
 const UnmanagedXpath = struct {
@@ -76,7 +123,7 @@ const UnmanagedXpath = struct {
     xtype: enum {
         root,
         select,
-        range,
+        // range,
         group,
         any,
     },
@@ -147,46 +194,52 @@ fn Xpath1(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
 fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
     const tokenz = try scanner(allocator, query);
     defer tokenz.deinit();
+
+    const xpath = allocator.create(UnmanagedXpath) catch unreachable;
+    xpath.* = UnmanagedXpath{
+        .allocator = allocator,
+        .xtype = .root,
+    };
+
+    var curr: *UnmanagedXpath = xpath;
+    var pre_tt: TokenType = undefined;
+    // var buf: [128]u8 = undefined;
+    // var bn: u8 = 0;
+
+    for (tokenz.items) |token| {
+        print("token: {any}\n", .{token});
+
+        switch (token.ttype) {
+            .slash => {
+                const subpath = allocator.create(UnmanagedXpath) catch unreachable;
+                subpath.* = UnmanagedXpath{
+                    .allocator = allocator,
+                    .xtype = .root,
+                };
+                xpath.next = subpath;
+                curr = subpath;
+            },
+            .number => {},
+            // .xtype => {},
+        }
+
+        pre_tt = token.ttype;
+    }
+
+    return xpath;
 }
 
-test "scanner" {
+test "null xpath" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const tokenz = try scanner(allocator, "/s30/g5/.");
-    defer tokenz.deinit();
+    const xpath = try Xpath(allocator, "/");
+    defer xpath.deinit();
 
-    try expect(tokenz.items.len == 9);
-
-    try expect(tokenz.items[0].value == '/');
-
-    try expect(tokenz.items[0].ttype == .slash);
-    try expect(tokenz.items[1].ttype == .xtype);
-    try expect(tokenz.items[2].ttype == .number);
-    try expect(tokenz.items[3].ttype == .number);
-    try expect(tokenz.items[4].ttype == .slash);
-    try expect(tokenz.items[5].ttype == .xtype);
-    try expect(tokenz.items[6].ttype == .number);
-    try expect(tokenz.items[7].ttype == .slash);
-    try expect(tokenz.items[8].ttype == .xtype);
-
-    try expect(tokenz.items[1].xsubtype == .xselect);
-    try expect(tokenz.items[5].xsubtype == .xgroup);
-    try expect(tokenz.items[8].xsubtype == .xany);
+    try expect(xpath.value == null);
+    try expect(xpath.next == null);
 }
-
-// test "null xpath" {
-//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-//     const allocator = gpa.allocator();
-//     defer _ = gpa.deinit();
-
-//     const xpath = Xpath(allocator, "/");
-//     defer xpath.deinit();
-
-//     try expect(xpath.value == null);
-//     try expect(xpath.next == null);
-// }
 
 // test "simple xpath" {
 //     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
