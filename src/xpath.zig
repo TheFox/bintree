@@ -1,6 +1,6 @@
 const std = @import("std");
 const print = std.debug.print;
-const tree = @import("tree.zig");
+// const tree = @import("tree.zig");
 const Allocator = std.mem.Allocator;
 const expect = std.testing.expect;
 const parseInt = std.fmt.parseInt;
@@ -243,7 +243,7 @@ test "simple_xpath" {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const xpath = try Xpath(allocator, "/s01/g3");
+    const xpath = try Xpath(allocator, "/s80/sf7/g5");
     defer xpath.deinit();
 
     try expect(xpath.xtype == .root);

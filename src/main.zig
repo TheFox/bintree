@@ -6,12 +6,12 @@ const print = std.debug.print;
 const eql = std.mem.eql;
 const parseInt = std.fmt.parseInt;
 const tree = @import("tree.zig");
+const Node = tree.Node;
+const RootNode = tree.RootNode;
 const types = @import("types.zig");
 const xpath = @import("xpath.zig");
 const XpathList = xpath.XpathList;
 const Xpath = xpath.Xpath;
-const PrefixPathT = types.PrefixPathT;
-const LevelT = types.LevelT;
 const CharInputMode = enum(u2) { unknown, binary, hex };
 const run_mode = @import("builtin").mode;
 
@@ -35,17 +35,6 @@ pub fn main() !void {
     var ignores = ArrayList(u8).init(allocator);
     defer ignores.deinit();
 
-    // var parse_rules: *XpathList = undefined;
-    // parse_rules.* = allocator.create(XpathList) catch unreachable;
-    // defer parse_rules.deinit();
-
-    // var parse_rules = allocator.create(XpathList) catch unreachable;
-    // parse_rules.* = XpathList.init(allocator);
-    // defer {
-    //     parse_rules.deinit();
-    //     allocator.destroy(parse_rules);
-    // }
-
     var parse_rules = XpathList.init(allocator);
     if (run_mode == .Debug) {
         defer {
@@ -58,9 +47,9 @@ pub fn main() !void {
     var arg_verbose_level: u8 = 0;
     var arg_delimiter: u8 = '\n';
     var arg_single_char_input_mode: CharInputMode = .unknown;
-    var arg_max_parse_level: LevelT = 256;
-    var arg_max_show_level: LevelT = 256;
-    var arg_min_count_level: LevelT = 0;
+    var arg_max_parse_level: usize = 256;
+    var arg_max_show_level: usize = 256;
+    var arg_min_count_level: usize = 0;
     if (arg_verbose_level >= 1) {
         print("args: {d}\n", .{args.len});
     }
@@ -116,19 +105,19 @@ pub fn main() !void {
             }
         } else if (eql(u8, arg, "-l")) {
             if (args_iter.next()) |next_arg| {
-                arg_max_parse_level = try parseInt(LevelT, next_arg, 10);
+                arg_max_parse_level = try parseInt(usize, next_arg, 10);
             }
         } else if (eql(u8, arg, "-s")) {
             if (args_iter.next()) |next_arg| {
-                arg_max_show_level = try parseInt(LevelT, next_arg, 10);
+                arg_max_show_level = try parseInt(usize, next_arg, 10);
             }
         } else if (eql(u8, arg, "-t")) {
             if (args_iter.next()) |next_arg| {
-                arg_min_count_level = try parseInt(LevelT, next_arg, 10);
+                arg_min_count_level = try parseInt(usize, next_arg, 10);
             }
         } else if (eql(u8, arg, "-c")) {
             if (args_iter.next()) |next_arg| {
-                arg_min_count_level = try parseInt(LevelT, next_arg, 10);
+                arg_min_count_level = try parseInt(usize, next_arg, 10);
             }
         } else if (eql(u8, arg, "-i")) {
             if (args_iter.next()) |next_arg| {
@@ -164,7 +153,7 @@ pub fn main() !void {
     }
     if (arg_verbose_level >= 2) {
         for (parse_rules.items) |xpath_i| {
-            print("xpath: {any}\n", .{xpath_i});
+            print("parse_rule: {any}\n", .{xpath_i});
         }
     }
     if (arg_single_char_input_mode == .unknown) {
@@ -172,11 +161,19 @@ pub fn main() !void {
         return;
     }
 
-    var root = tree.RootNode(allocator);
-    // No need to free everything at the end because the process is going to exit anyway.
-    if (run_mode == .Debug) {
-        defer root.deinit();
-    }
+    // var hello = try allocator.dupe(u8, "hello");
+    // defer allocator.free(hello);
+
+    // hello[0] = 'H';
+    // hello[1] = 'A';
+    // hello[2] = 'X';
+
+    var root = RootNode(allocator);
+
+    // try root.addInput(hello);
+    // defer
+
+    var lines = ArrayList(*ArrayList(u8)).init(allocator);
 
     for (files.items) |file_path| {
         print("input file: {s}\n", .{file_path});
@@ -194,8 +191,16 @@ pub fn main() !void {
             if (arg_verbose_level >= 3)
                 print("line: '{s}'\n", .{line});
 
-            var bytes = ArrayList(u8).init(allocator);
-            defer bytes.deinit();
+            // var input_line = ArrayList(u8).init(allocator);
+            // try lines.append(&input_line);
+
+            const input_line = allocator.create(ArrayList(u8)) catch unreachable;
+            input_line.* = ArrayList(u8).init(allocator);
+            try lines.append(input_line);
+
+            // var line_input: [4096]u8 = undefined;
+            // var linec: usize = 0;
+            // var line_input_p: []u8 = &line_input;
 
             switch (arg_single_char_input_mode) {
                 .unknown => break,
@@ -205,6 +210,7 @@ pub fn main() !void {
                     for (line) |c| {
                         if (contains(u8, ignores.items, 1, c))
                             continue;
+
                         switch (n) {
                             0 => {
                                 buf[0] = c;
@@ -216,7 +222,11 @@ pub fn main() !void {
                                 const x = try parseInt(u8, &buf, 16);
                                 if (contains(u8, ignores.items, 1, x))
                                     continue;
-                                try bytes.append(x);
+
+                                try input_line.append(x);
+
+                                // line_input[linec] = x;
+                                // linec += 1;
                             },
                         }
                     }
@@ -225,19 +235,50 @@ pub fn main() !void {
                     for (line) |c| {
                         if (contains(u8, ignores.items, 1, c))
                             continue;
-                        try bytes.append(c);
+
+                        try input_line.append(c);
+
+                        // line_input[linec] = c;
+                        // linec += 1;
                     }
                 },
             }
 
-            try root.addBytes(bytes.items, arg_max_parse_level);
+            print("input_line.items: any '{any}'\n", .{input_line.items});
+            print("input_line: s '{s}'\n", .{input_line.items});
+            print("input_line: any '{any}'\n", .{input_line.items});
+
+            // try root.addInput(input_line.items, arg_max_parse_level);
+            try root.addInput(input_line.items);
+            // try root.addInput(&line_input);
         }
     }
 
-    const prefix_path = PrefixPathT.init(allocator);
+    print("finished parsing files\n", .{});
+
+    const prefix_path = ArrayList([]const u8).init(allocator);
     defer prefix_path.deinit();
 
-    try root.show(0, arg_max_show_level, arg_min_count_level, false, &prefix_path);
+    // print("main show\n", .{});
+    // try root.show(0, arg_max_show_level, arg_min_count_level, false, &prefix_path);
+
+    if (run_mode == .Debug) {
+        // No need to free everything in production mode at the end
+        // because the process is going to exit anyway.
+
+        print("deinit root START\n", .{});
+        root.deinit();
+        print("deinit root DONE\n", .{});
+
+        print("deinit lines\n", .{});
+        for (lines.items) |main_line| {
+            print("deinit line: {*}\n", .{main_line});
+            // allocator.destroy(main_line);
+            // main_line.deinit();
+        }
+        print("deinit lines array list\n", .{});
+        lines.deinit();
+    }
 
     print("exit\n", .{});
 }
