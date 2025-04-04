@@ -19,7 +19,6 @@ pub const Node = struct {
         print("Node.init children cap A: {d}/{d}\n", .{ children.capacity(), children.count() });
 
         const node = allocator.create(Node) catch unreachable;
-        // defer node.deinit();
         node.* = Node{
             .allocator = allocator,
             .parent = parent,
