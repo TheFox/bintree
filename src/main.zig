@@ -161,17 +161,7 @@ pub fn main() !void {
         return;
     }
 
-    // var hello = try allocator.dupe(u8, "hello");
-    // defer allocator.free(hello);
-
-    // hello[0] = 'H';
-    // hello[1] = 'A';
-    // hello[2] = 'X';
-
     var root = RootNode(allocator);
-
-    // try root.addInput(hello);
-    // defer
 
     var lines = ArrayList(*ArrayList(u8)).init(allocator);
 
