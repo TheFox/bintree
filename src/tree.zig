@@ -55,13 +55,18 @@ pub const Node = struct {
             return;
         }
 
+        const key = input_line[0];
+        print("key: {X}\n", .{key});
+
+        if (self.children.get(key)) |node| {
+            try node.addInput(input_line[1..]);
+            return;
+        }
+
         print("rest: {d}\n", .{input_line[1..].len});
 
         var child = Node.init(self.allocator, self);
         try child.addInput(input_line[1..]);
-
-        const key = input_line[0];
-        print("key: {X}\n", .{key});
 
         try self.children.put(key, child);
         print("Node.addInput children cap B: {d}/{d}\n", .{ self.children.capacity(), self.children.count() });
