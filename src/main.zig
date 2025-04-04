@@ -182,15 +182,13 @@ pub fn main() !void {
                 print("line: '{s}'\n", .{line});
 
             // var input_line = ArrayList(u8).init(allocator);
-            // try lines.append(&input_line);
+            // defer input_line.deinit();
 
             const input_line = allocator.create(ArrayList(u8)) catch unreachable;
             input_line.* = ArrayList(u8).init(allocator);
             try lines.append(input_line);
 
-            // var line_input: [4096]u8 = undefined;
-            // var linec: usize = 0;
-            // var line_input_p: []u8 = &line_input;
+            print("input_line: {any}\n", .{input_line});
 
             switch (arg_single_char_input_mode) {
                 .unknown => break,
@@ -234,13 +232,9 @@ pub fn main() !void {
                 },
             }
 
-            print("input_line.items: any '{any}'\n", .{input_line.items});
-            print("input_line: s '{s}'\n", .{input_line.items});
             print("input_line: any '{any}'\n", .{input_line.items});
 
-            // try root.addInput(input_line.items, arg_max_parse_level);
             try root.addInput(input_line.items);
-            // try root.addInput(&line_input);
         }
     }
 
@@ -261,10 +255,10 @@ pub fn main() !void {
         print("deinit root DONE\n", .{});
 
         print("deinit lines\n", .{});
-        for (lines.items) |main_line| {
-            print("deinit line: {*}\n", .{main_line});
-            // allocator.destroy(main_line);
-            // main_line.deinit();
+        for (lines.items) |line| {
+            print("deinit line: {*}\n", .{line});
+            line.deinit();
+            allocator.destroy(line);
         }
         print("deinit lines array list\n", .{});
         lines.deinit();
