@@ -5,6 +5,8 @@ const ArrayList = std.ArrayList;
 const AutoHashMap = std.AutoHashMap;
 const print = std.debug.print;
 const fmtSliceHexUpper = std.fmt.fmtSliceHexUpper;
+const expect = std.testing.expect;
+const dupe = std.mem.Allocator.dupe;
 
 pub fn RootNode(allocator: Allocator) *Node {
     return Node.init(allocator, null);
@@ -176,3 +178,57 @@ pub const Node = struct {
         }
     }
 };
+
+test "simple node" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    const node = RootNode(allocator);
+    defer node.deinit();
+}
+
+test "simple string" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    const buffer1 = dupe(allocator, u8, "\x01\x02\x03") catch unreachable;
+    const buffer2 = dupe(allocator, u8, "\x01\x02\x04") catch unreachable;
+
+    const node = RootNode(allocator);
+    defer node.deinit();
+
+    try node.addInput(buffer1, 256);
+    try node.addInput(buffer2, 256);
+
+    print("node.count: {d}\n", .{node.count});
+    try expect(node.count == 2);
+    try expect(node.children.count() == 1);
+
+    if (node.children.get(1)) |subnode1| {
+        try expect(subnode1.value == 1);
+        try expect(subnode1.children.count() == 1);
+
+        if (subnode1.children.get(2)) |subnode2| {
+            try expect(subnode2.value == 2);
+            try expect(subnode2.children.count() == 2);
+
+            if (subnode2.children.get(3)) |subnode3| {
+                try expect(subnode3.value == 3);
+                try expect(subnode3.children.count() == 0);
+            } else {
+                try expect(false);
+            }
+
+            if (subnode2.children.get(4)) |subnode4| {
+                try expect(subnode4.value == 4);
+                try expect(subnode4.children.count() == 0);
+            } else {
+                try expect(false);
+            }
+        } else {
+            try expect(false);
+        }
+    } else {
+        try expect(false);
+    }
+}
