@@ -231,7 +231,7 @@ pub fn main() !void {
 
             print("input_line: any '{any}'\n", .{input_line.items});
 
-            try root.addInput(input_line.items);
+            try root.addInput(input_line.items, arg_max_parse_level);
         }
     }
 
@@ -241,7 +241,7 @@ pub fn main() !void {
     defer prefix_path.deinit();
 
     // print("main show\n", .{});
-    // try root.show(0, arg_max_show_level, arg_min_count_level, false, &prefix_path);
+    try root.show(0, arg_max_show_level, arg_min_count_level, false, &prefix_path);
 
     if (run_mode == .Debug) {
         // No need to free everything in production mode at the end
