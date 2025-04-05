@@ -103,6 +103,12 @@ pub fn main() !void {
                     @panic("ERROR: Unknown input mode. Use 'bin' or 'hex.");
                 }
             }
+        } else if (eql(u8, arg, "-mb")) {
+            // Lines as binary.
+            arg_single_char_input_mode = .binary;
+        } else if (eql(u8, arg, "-mx")) {
+            // Lines as hex.
+            arg_single_char_input_mode = .hex;
         } else if (eql(u8, arg, "-l")) {
             if (args_iter.next()) |next_arg| {
                 arg_max_parse_level = try parseInt(usize, next_arg, 10);
@@ -270,6 +276,8 @@ fn print_help() void {
         \\-f <path>        One file. You can use -f multiple times.
         \\-d <string>      Delimiter between messages. 'NL' new line (default), '0' (for \0x00) or any other character.
         \\-m <string>      Input mode: 'bin' or 'hex'.
+        \\-mb              Alias for -m bin.
+        \\-mx              Alias for -m hex.
         \\-l <number>      Maximum levels to parse.
         \\-s <number>      Maximum levels to show.
         \\-t <number>      Minimum node-count.
