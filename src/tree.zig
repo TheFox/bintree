@@ -66,16 +66,13 @@ pub const Node = struct {
 
     pub fn addInput(self: *Node, input_line: []u8, max_parse_level: usize) !void {
         print("addInput({*}, {d})\n", .{ self, input_line.len });
-        // print("Node.addInput children cap A: {d}/{d}\n", .{ self.children.capacity(), self.children.count() });
 
         self.count += 1;
         if (input_line.len == 0) {
-            // print("addInput input_line is empty\n", .{});
             return;
         }
 
         if (self.node_level >= max_parse_level) {
-            // print("addInput max_parse_level reached: {d}\n", .{max_parse_level});
             return;
         }
 
@@ -87,15 +84,12 @@ pub const Node = struct {
             return;
         }
 
-        // print("rest: {d}\n", .{input_line[1..].len});
-
         var child = Node.init(self.allocator, self);
         child.value = key;
         child.node_level = self.node_level + 1;
         try child.addInput(input_line[1..], max_parse_level);
 
         try self.children.put(key, child);
-        // print("Node.addInput children cap B: {d}/{d}\n", .{ self.children.capacity(), self.children.count() });
 
         self.reportMaxNodeLevel(self.node_level);
     }
