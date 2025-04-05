@@ -240,24 +240,18 @@ pub fn main() !void {
     const prefix_path = ArrayList([]const u8).init(allocator);
     defer prefix_path.deinit();
 
-    // print("main show\n", .{});
     try root.show(0, arg_max_show_level, arg_min_count_level, false, &prefix_path);
 
     if (run_mode == .Debug) {
         // No need to free everything in production mode at the end
         // because the process is going to exit anyway.
 
-        print("deinit root START\n", .{});
         root.deinit();
-        print("deinit root DONE\n", .{});
 
-        print("deinit lines\n", .{});
         for (lines.items) |line| {
-            print("deinit line: {*}\n", .{line});
             line.deinit();
             allocator.destroy(line);
         }
-        print("deinit lines array list\n", .{});
         lines.deinit();
     }
 

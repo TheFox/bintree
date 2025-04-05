@@ -91,7 +91,6 @@ pub const Node = struct {
 
         var child = Node.init(self.allocator, self);
         child.value = key;
-        child.count = 1;
         child.node_level = self.node_level + 1;
         try child.addInput(input_line[1..], max_parse_level);
 
