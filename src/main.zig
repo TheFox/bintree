@@ -181,9 +181,6 @@ pub fn main() !void {
             if (arg_verbose_level >= 3)
                 print("line: '{s}'\n", .{line});
 
-            // var input_line = ArrayList(u8).init(allocator);
-            // defer input_line.deinit();
-
             const input_line = allocator.create(ArrayList(u8)) catch unreachable;
             input_line.* = ArrayList(u8).init(allocator);
             try lines.append(input_line);
@@ -212,9 +209,6 @@ pub fn main() !void {
                                     continue;
 
                                 try input_line.append(x);
-
-                                // line_input[linec] = x;
-                                // linec += 1;
                             },
                         }
                     }
@@ -225,9 +219,6 @@ pub fn main() !void {
                             continue;
 
                         try input_line.append(c);
-
-                        // line_input[linec] = c;
-                        // linec += 1;
                     }
                 },
             }
