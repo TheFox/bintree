@@ -79,7 +79,10 @@ pub const Node = struct {
         }
 
         const key = input_line[0];
-        // print("key: {X}\n", .{key});
+        print("key X: {X}\n", .{key});
+        // print("key fmt: {}\n", .{
+        //     fmtSliceHexUpper(key),
+        // });
 
         if (self.children.get(key)) |node| {
             try node.addInput(input_line[1..], max_parse_level);
