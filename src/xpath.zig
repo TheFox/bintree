@@ -280,7 +280,8 @@ test "null_xpath" {
     const xpath = try Xpath(allocator, "/");
     defer xpath.deinit();
 
-    try expect(xpath.next != null);
+    try expect(xpath.next == null);
+    try expect(xpath.nvalue == null);
 }
 
 test "simple_xpath" {
@@ -291,18 +292,7 @@ test "simple_xpath" {
     const xpath = try Xpath(allocator, "/sAB");
     defer xpath.deinit();
 
-    // try expect(xpath.xtype == .root);
-
-    // if (xpath.next) |xpath1| {
-    //     print("xpath1.xtype: {any}\n", .{xpath1.xtype});
-    //     try expect(xpath1.xtype == .select);
-
-    //     print("xpath1.nvalue: {any}\n", .{xpath1.nvalue});
-    //     try expect(xpath1.nvalue == 255);
-
-    //     // if (xpath1.next) |xpath2| {
-    //     //     try expect(xpath2.xtype == .group);
-    //     //     try expect(xpath2.value == 3);
-    //     // } else try expect(false);
-    // } else try expect(false);
+    if (xpath.next) |xpath1| {
+        print("xpath1.kind: {any}\n", .{xpath1.kind});
+    } else try expect(false);
 }
