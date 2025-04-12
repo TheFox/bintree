@@ -8,17 +8,20 @@ const print = std.debug.print;
 const fmtSliceHexUpper = std.fmt.fmtSliceHexUpper;
 const expect = std.testing.expect;
 const dupe = std.mem.Allocator.dupe;
+const xpath = @import("xpath.zig");
+const XpathList = xpath.XpathList;
 
 fn compareStringsAsc(_: void, a: []const u8, b: []const u8) bool {
     return std.mem.order(u8, a, b) == .lt;
 }
 
-pub fn RootNode(allocator: Allocator) *Node {
-    return Node.init(allocator, null);
+pub fn RootNode(allocator: Allocator, parse_rules: *XpathList) *Node {
+    return Node.init(allocator, null, parse_rules);
 }
 
 pub const Node = struct {
     allocator: Allocator,
+    parse_rules: *XpathList,
     parent: ?*Node,
     children: StringArrayHashMap,
     value: []const u8 = undefined,
@@ -26,12 +29,13 @@ pub const Node = struct {
     node_level: usize = 0,
     max_node_level: usize = 0,
 
-    pub fn init(allocator: Allocator, parent: ?*Node) *Node {
+    pub fn init(allocator: Allocator, parent: ?*Node, parse_rules: *XpathList) *Node {
         const children = StringArrayHashMap.init(allocator);
 
         const node = allocator.create(Node) catch unreachable;
         node.* = Node{
             .allocator = allocator,
+            .parse_rules = parse_rules,
             .parent = parent,
             .children = children,
         };
@@ -78,7 +82,7 @@ pub const Node = struct {
             return;
         }
 
-        var child = Node.init(self.allocator, self);
+        var child = Node.init(self.allocator, self, self.parse_rules);
         child.value = key;
         child.node_level = self.node_level + 1;
         try child.addInput(input_line[1..], max_parse_level);

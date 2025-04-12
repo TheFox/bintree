@@ -36,13 +36,6 @@ pub fn main() !void {
     defer ignores.deinit();
 
     var parse_rules = XpathList.init(allocator);
-    if (run_mode == .Debug) {
-        defer {
-            for (parse_rules.items) |item|
-                item.deinit();
-            parse_rules.deinit();
-        }
-    }
 
     var arg_verbose_level: u8 = 0;
     var arg_delimiter: u8 = '\n';
@@ -167,7 +160,7 @@ pub fn main() !void {
         return;
     }
 
-    var root = RootNode(allocator);
+    var root = RootNode(allocator, &parse_rules);
 
     var lines = ArrayList(*ArrayList(u8)).init(allocator);
 
@@ -235,16 +228,19 @@ pub fn main() !void {
         }
     }
 
-    print("finished parsing files\n", .{});
+    if (arg_verbose_level >= 1) {
+        print("finished parsing files\n", .{});
+    }
 
     const prefix_path = ArrayList([]const u8).init(allocator);
-    defer prefix_path.deinit();
 
     try root.show(0, arg_max_show_level, arg_min_count_level, false, &prefix_path);
 
     if (run_mode == .Debug) {
         // No need to free everything in production mode at the end
         // because the process is going to exit anyway.
+
+        prefix_path.deinit();
 
         root.deinit();
 
@@ -253,6 +249,10 @@ pub fn main() !void {
             allocator.destroy(line);
         }
         lines.deinit();
+
+        for (parse_rules.items) |item|
+            item.deinit();
+        parse_rules.deinit();
     }
 
     print("exit\n", .{});
