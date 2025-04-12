@@ -15,12 +15,6 @@ const Kind = enum {
     point,
 };
 
-const Flag = enum(u8) {
-    xselect = 0b001,
-    xgroup = 0b010,
-    xany = 0b100,
-};
-
 const Token = struct {
     kind: Kind = undefined,
 
@@ -111,6 +105,7 @@ const UnmanagedXpath = struct {
         level,
         select,
         ignore,
+        group,
     } = undefined,
 
     pub fn deinit(self: *UnmanagedXpath) void {
@@ -194,7 +189,13 @@ pub fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
                             // ignore the next n bytes
                             // n = decimal number
                             currx.kind = .ignore;
-                            read_num_val = 5;
+                            read_num_val = 5; // max '65535'
+                        },
+                        'g' => {
+                            // group the next n bytes
+                            // n = decimal number
+                            currx.kind = .group;
+                            read_num_val = 5; // max '65535'
                         },
                         else => {
                             print("Undefined token.value[0]: {c}\n", .{token.value[0]});
@@ -236,13 +237,13 @@ pub fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
 
         if (currx.blen > 0) {
             switch (currx.kind) {
+                .init, .root, .level => {},
                 .select => {
                     currx.nvalue = try parseInt(u16, currx.bvalue[0..currx.blen], 16);
                 },
-                .ignore => {
+                .ignore, .group => {
                     currx.nvalue = try parseInt(u16, currx.bvalue[0..currx.blen], 10);
                 },
-                else => unreachable,
             }
 
             print("currx.nvalue: {any}\n", .{currx.nvalue});
@@ -267,7 +268,7 @@ test "xpath_dev" {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const xpath = try Xpath(allocator, "/sFEi65535");
+    const xpath = try Xpath(allocator, "/sFEi65535g42");
     defer xpath.deinit();
 }
 
