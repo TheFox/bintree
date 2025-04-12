@@ -23,7 +23,6 @@ pub const Node = struct {
 
     pub fn init(allocator: Allocator, parent: ?*Node) *Node {
         const children = AutoHashMap(u8, *Node).init(allocator);
-        // print("Node.init children cap A: {d}/{d}\n", .{ children.capacity(), children.count() });
 
         const node = allocator.create(Node) catch unreachable;
         node.* = Node{
@@ -31,34 +30,22 @@ pub const Node = struct {
             .parent = parent,
             .children = children,
         };
-
-        // print("Node.init children cap B: {d}/{d}\n", .{ children.capacity(), children.count() });
         return node;
     }
 
     pub fn deinit(self: *Node) void {
-        // print("Node.deinit()\n", .{});
-
         var iter = self.children.iterator();
         while (iter.next()) |entry| {
-            // print("Node.deinit subnode\n", .{});
             const node = entry.value_ptr.*;
             node.deinit();
         }
-
-        // print("Node.deinit self.children.deinit\n", .{});
         self.children.deinit();
-
-        // print("Node.deinit destroy self\n", .{});
         self.allocator.destroy(self);
     }
 
     pub fn reportMaxNodeLevel(self: *Node, max_node_level: usize) void {
-        // print("reportMaxNodeLevel({d})\n", .{max_node_level});
-
         if (max_node_level > self.max_node_level) {
             self.max_node_level = max_node_level - self.node_level;
-            // print("reportMaxNodeLevel new max: {d} ({d}-{d})\n", .{ self.max_node_level, max_node_level, self.node_level });
         }
 
         if (self.parent) |parent_node| {
@@ -80,9 +67,6 @@ pub const Node = struct {
 
         const key = input_line[0];
         print("key X: {X}\n", .{key});
-        // print("key fmt: {}\n", .{
-        //     fmtSliceHexUpper(key),
-        // });
 
         if (self.children.get(key)) |node| {
             try node.addInput(input_line[1..], max_parse_level);
@@ -131,7 +115,6 @@ pub const Node = struct {
             const iprefix = if (is_last) "└" else "├";
             print("{s}─ 0x{X} count={d} level={d} depth={d} children={d}\n", .{
                 iprefix,
-                // fmtSliceHexUpper(self.value),
                 self.value,
                 self.count,
                 self.node_level,
@@ -182,7 +165,7 @@ pub const Node = struct {
     }
 };
 
-test "simple node" {
+test "simple_node" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
@@ -190,7 +173,7 @@ test "simple node" {
     defer node.deinit();
 }
 
-test "simple string" {
+test "simple_string" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
