@@ -135,7 +135,7 @@ pub fn main() !void {
             }
         } else if (eql(u8, arg, "-r")) {
             if (args_iter.next()) |next_arg| {
-                try parse_rules.append(try Xpath(allocator, next_arg));
+                try parse_rules.append(try Xpath.init(allocator, next_arg));
             }
         } else {
             print("Unknown argument: {s}\n", .{arg});
@@ -152,7 +152,7 @@ pub fn main() !void {
     }
     if (arg_verbose_level >= 2) {
         for (parse_rules.items) |xpath_i| {
-            print("parse_rule: {any}\n", .{xpath_i});
+            print("parse_rule: {any}\n", .{xpath_i.nvalue});
         }
     }
     if (arg_single_char_input_mode == .unknown) {
@@ -184,7 +184,7 @@ pub fn main() !void {
             input_line.* = ArrayList(u8).init(allocator);
             try lines.append(input_line);
 
-            print("input_line: {any}\n", .{input_line});
+            // print("input_line: {any}\n", .{input_line.items});
 
             switch (arg_single_char_input_mode) {
                 .unknown => break,
@@ -222,7 +222,7 @@ pub fn main() !void {
                 },
             }
 
-            print("input_line: any '{any}'\n", .{input_line.items});
+            print("\ninput_line: {any}\n", .{input_line.items});
 
             try root.addInput(input_line.items, arg_max_parse_level);
         }

@@ -8,8 +8,9 @@ const print = std.debug.print;
 const fmtSliceHexUpper = std.fmt.fmtSliceHexUpper;
 const expect = std.testing.expect;
 const dupe = std.mem.Allocator.dupe;
-const xpath = @import("xpath.zig");
-const XpathList = xpath.XpathList;
+const xpath_import = @import("xpath.zig");
+const Xpath = xpath_import.Xpath;
+const XpathList = xpath_import.XpathList;
 
 fn compareStringsAsc(_: void, a: []const u8, b: []const u8) bool {
     return std.mem.order(u8, a, b) == .lt;
@@ -63,33 +64,101 @@ pub const Node = struct {
     }
 
     pub fn addInput(self: *Node, input_line: []u8, max_parse_level: usize) !void {
-        print("addInput({*}, {d})\n", .{ self, input_line.len });
-
         self.count += 1;
+        print("addInput({*}, {d}, {d}) -> count: {d}\n", .{ self, input_line.len, max_parse_level, self.count });
+
         if (input_line.len == 0) {
             return;
         }
 
-        if (self.node_level >= max_parse_level) {
-            return;
+        var rest_parse_rules = XpathList.init(self.allocator);
+        defer rest_parse_rules.deinit();
+
+        var selected = ArrayList(u8).init(self.allocator);
+        defer selected.deinit();
+
+        for (self.parse_rules.items) |rule| {
+            print("\x1b[32m-> parse rule: {any} {any}\x1b[0m\n", .{ rule.kind, rule.nvalue });
+
+            var processed_rules = false;
+            var currx: *Xpath = rule;
+            var xpath_left = true;
+            var input_pos: usize = 0;
+            for (input_line) |input_c| {
+                print("input_c: {X} {d}\n", .{ input_c, input_pos });
+
+                print("--> currx: {any}\n", .{currx.nvalue});
+
+                switch (currx.kind) {
+                    .select => {
+                        if (currx.nvalue == input_c) {
+                            print("\x1b[1;34m---> equals: {X}\x1b[0m\n", .{input_c});
+                            try selected.append(input_c);
+                            processed_rules = true;
+                        } else {
+                            print("\x1b[1;34m---> break input [select]\x1b[0m\n", .{});
+                            break;
+                        }
+                    },
+                    .delete => {
+                        print("---> delete\n", .{});
+
+                        if (currx.nvalue == input_c) {
+                            print("\x1b[1;34m---> delete: {X}\x1b[0m\n", .{input_c});
+                            processed_rules = true;
+                        }
+                    },
+                    else => unreachable,
+                }
+
+                input_pos += 1;
+
+                if (currx.next) |next| {
+                    currx = next;
+                } else {
+                    xpath_left = false;
+                    break;
+                }
+            }
+
+            if (xpath_left) {
+                try rest_parse_rules.append(currx);
+            }
+
+            print("-> rest: {X}\n", .{input_line[input_pos..]});
+            print("-> selected: {X}\n", .{selected.items});
+            print("-> processed_rules: {any}\n", .{processed_rules});
+            if (processed_rules) {
+                break;
+            }
         }
 
-        const key = input_line[0..1];
+        print("-> rest_parse_rules: len={d}\n", .{rest_parse_rules.items.len});
+
+        // if (self.node_level >= max_parse_level) {
+        //     return;
+        // }
+
+        const key = selected.items;
         print("key X: {X}\n", .{key});
 
+        print("get()\n", .{});
         if (self.children.get(key)) |node| {
+            print("get -> found\n", .{});
             try node.addInput(input_line[1..], max_parse_level);
             return;
         }
+        print("get -> not found\n", .{});
 
         var child = Node.init(self.allocator, self, self.parse_rules);
-        child.value = key;
-        child.node_level = self.node_level + 1;
+        // child.value = key;
+        // child.node_level = self.node_level + 1;
         try child.addInput(input_line[1..], max_parse_level);
 
         try self.children.put(key, child);
 
-        self.reportMaxNodeLevel(self.node_level);
+        // self.reportMaxNodeLevel(self.node_level);
+        // print("\n", .{});
     }
 
     pub fn show(
@@ -174,19 +243,20 @@ pub const Node = struct {
 test "simple_node" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-
-    const node = RootNode(allocator);
+    var rules: XpathList = XpathList.init(allocator);
+    const node = RootNode(allocator, &rules);
     defer node.deinit();
 }
 
 test "simple_string" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+    var rules: XpathList = XpathList.init(allocator);
 
     const buffer1 = dupe(allocator, u8, "\x01\x02\x03") catch unreachable;
     const buffer2 = dupe(allocator, u8, "\x01\x02\x04") catch unreachable;
 
-    const node = RootNode(allocator);
+    const node = RootNode(allocator, &rules);
     defer node.deinit();
 
     try node.addInput(buffer1, 256);

@@ -93,9 +93,9 @@ test "scanner" {
     // try expect(eql(u8, item.value[0..item.vlen], "5"));
 }
 
-const UnmanagedXpath = struct {
+pub const Xpath = struct {
     allocator: Allocator,
-    next: ?*UnmanagedXpath = null,
+    next: ?*Xpath = null,
     nvalue: ?u16 = null,
     bvalue: [5]u8 = undefined,
     blen: u8 = 0,
@@ -105,18 +105,154 @@ const UnmanagedXpath = struct {
         level,
         select,
         ignore,
+        delete,
         group,
     } = undefined,
 
-    pub fn deinit(self: *UnmanagedXpath) void {
+    pub fn init(allocator: Allocator, query: []const u8) !*Xpath {
+        // print("Xpath scanner\n", .{});
+        const tokenz = try scanner(allocator, query);
+        defer tokenz.deinit();
+
+        const root = allocator.create(Xpath) catch unreachable;
+        root.* = Xpath{
+            .allocator = allocator,
+            .kind = .root,
+        };
+
+        // print("\nXpath tokenz\n", .{});
+        var currx1: *Xpath = root;
+        var pre_kind: Kind = .init;
+        var token_c: usize = 0;
+        var read_bin_val: u8 = 0;
+        var read_num_val: u8 = 0;
+        for (tokenz.items) |token| {
+            var next_xpath: bool = false;
+
+            // print("\n", .{});
+            // print("currx1: {*}\n", .{currx1});
+            // print("blen: {d}\n", .{currx1.blen});
+            // print("pre_kind: {any}\n", .{pre_kind});
+
+            switch (token.kind) {
+                .slash => {
+                    // print("slash\n", .{});
+                    currx1.kind = .level;
+                    next_xpath = true;
+                },
+                .number, .char => {
+                    // print("char: {c}\n", .{token.value[0]});
+                    if (read_bin_val > 0) {
+                        currx1.bvalue[currx1.blen] = token.value[0];
+                        currx1.blen += 1;
+
+                        read_bin_val -= 1;
+                        if (read_bin_val == 0) {
+                            next_xpath = true;
+                        }
+                    } else if (read_num_val > 0) {
+                        currx1.bvalue[currx1.blen] = token.value[0];
+                        currx1.blen += 1;
+
+                        read_num_val -= 1;
+                        if (read_num_val == 0) {
+                            next_xpath = true;
+                        }
+                    } else {
+                        switch (token.value[0]) {
+                            's' => {
+                                // select a specific byte value
+                                currx1.kind = .select;
+                                read_bin_val = 2;
+                            },
+                            'i' => {
+                                // ignore the next n bytes
+                                // n = decimal number
+                                currx1.kind = .ignore;
+                                read_num_val = 5; // max '65535'
+                            },
+                            'd' => {
+                                // delete a specific byte value.
+                                // like ignore (i) but with a specific byte value.
+                                currx1.kind = .delete;
+                                read_bin_val = 2;
+                            },
+                            'g' => {
+                                // group the next n bytes
+                                // n = decimal number
+                                currx1.kind = .group;
+                                read_num_val = 5; // max '65535'
+                            },
+                            else => {
+                                // print("Undefined token.value[0]: {c}\n", .{token.value[0]});
+                                unreachable;
+                            },
+                        }
+                    }
+                },
+                else => {
+                    // print("Undefined token.kind: {any}\n", .{token});
+                    unreachable;
+                },
+            }
+
+            // print("token.item: {any}\n", .{token});
+
+            token_c += 1;
+            if (token_c == tokenz.items.len) {
+                break;
+            }
+
+            if (next_xpath) {
+                const next = allocator.create(Xpath) catch unreachable;
+                next.* = Xpath{
+                    .allocator = allocator,
+                };
+                currx1.next = next;
+                currx1 = next;
+                // print("next: {*}\n", .{next});
+            }
+
+            pre_kind = token.kind;
+        }
+
+        // print("\nfrom root\n", .{});
+        var currx2: ?*Xpath = root;
+        while (currx2) |xitem| {
+            // print("curr2: {any}\n", .{xitem.kind});
+
+            if (xitem.blen > 0) {
+                switch (xitem.kind) {
+                    .init, .root, .level => {},
+                    .select, .delete => {
+                        xitem.nvalue = try parseInt(u16, xitem.bvalue[0..xitem.blen], 16);
+                    },
+                    .ignore, .group => {
+                        xitem.nvalue = try parseInt(u16, xitem.bvalue[0..xitem.blen], 10);
+                    },
+                }
+
+                // print("currx2.nvalue: {any}\n", .{xitem.nvalue});
+            }
+
+            currx2 = xitem.next;
+        }
+
+        // print("\nxprint\n", .{});
+        root.xprint(0);
+
+        return root;
+    }
+
+    pub fn deinit(self: *Xpath) void {
         if (self.next) |sub| {
             sub.deinit();
         }
         self.allocator.destroy(self);
     }
 
-    pub fn xprint(self: *UnmanagedXpath, n: u8) void {
-        print("UnmanagedXpath: {d} kind={any} nv={any} bv={any}({d})\n", .{
+    pub fn xprint(self: *Xpath, n: u8) void {
+        print("Xpath: {d} kind={any} nv={any} bv={any}({d})\n", .{
             n,
             self.kind,
             self.nvalue,
@@ -129,138 +265,7 @@ const UnmanagedXpath = struct {
     }
 };
 
-pub fn Xpath(allocator: Allocator, query: []const u8) !*UnmanagedXpath {
-    print("Xpath scanner\n", .{});
-    const tokenz = try scanner(allocator, query);
-    defer tokenz.deinit();
-
-    const root = allocator.create(UnmanagedXpath) catch unreachable;
-    root.* = UnmanagedXpath{
-        .allocator = allocator,
-        .kind = .root,
-    };
-
-    print("\nXpath tokenz\n", .{});
-    var currx: *UnmanagedXpath = root;
-    var pre_kind: Kind = .init;
-    var token_c: usize = 0;
-    var read_bin_val: u8 = 0;
-    var read_num_val: u8 = 0;
-    for (tokenz.items) |token| {
-        var next_xpath: bool = false;
-
-        print("\n", .{});
-        print("currx: {*}\n", .{currx});
-        print("blen: {d}\n", .{currx.blen});
-        print("pre_kind: {any}\n", .{pre_kind});
-
-        switch (token.kind) {
-            .slash => {
-                print("slash\n", .{});
-                currx.kind = .level;
-                next_xpath = true;
-            },
-            .number, .char => {
-                print("char: {c}\n", .{token.value[0]});
-                if (read_bin_val > 0) {
-                    currx.bvalue[currx.blen] = token.value[0];
-                    currx.blen += 1;
-
-                    read_bin_val -= 1;
-                    if (read_bin_val == 0) {
-                        next_xpath = true;
-                    }
-                } else if (read_num_val > 0) {
-                    currx.bvalue[currx.blen] = token.value[0];
-                    currx.blen += 1;
-
-                    read_num_val -= 1;
-                    if (read_num_val == 0) {
-                        next_xpath = true;
-                    }
-                } else {
-                    switch (token.value[0]) {
-                        's' => {
-                            // select a specific byte value
-                            currx.kind = .select;
-                            read_bin_val = 2;
-                        },
-                        'i' => {
-                            // ignore the next n bytes
-                            // n = decimal number
-                            currx.kind = .ignore;
-                            read_num_val = 5; // max '65535'
-                        },
-                        'g' => {
-                            // group the next n bytes
-                            // n = decimal number
-                            currx.kind = .group;
-                            read_num_val = 5; // max '65535'
-                        },
-                        else => {
-                            print("Undefined token.value[0]: {c}\n", .{token.value[0]});
-                            unreachable;
-                        },
-                    }
-                }
-            },
-            else => {
-                print("Undefined token.kind: {any}\n", .{token});
-                unreachable;
-            },
-        }
-
-        print("token.item: {any}\n", .{token});
-
-        token_c += 1;
-        if (token_c == tokenz.items.len) {
-            break;
-        }
-
-        if (next_xpath) {
-            const next = allocator.create(UnmanagedXpath) catch unreachable;
-            next.* = UnmanagedXpath{
-                .allocator = allocator,
-            };
-            currx.next = next;
-            currx = next;
-            print("next: {*}\n", .{next});
-        }
-
-        pre_kind = token.kind;
-    }
-
-    print("\nfrom root\n", .{});
-    currx = root;
-    while (true) {
-        print("curr: {any}\n", .{currx.kind});
-
-        if (currx.blen > 0) {
-            switch (currx.kind) {
-                .init, .root, .level => {},
-                .select => {
-                    currx.nvalue = try parseInt(u16, currx.bvalue[0..currx.blen], 16);
-                },
-                .ignore, .group => {
-                    currx.nvalue = try parseInt(u16, currx.bvalue[0..currx.blen], 10);
-                },
-            }
-
-            print("currx.nvalue: {any}\n", .{currx.nvalue});
-        }
-
-        if (currx.next) |next| {
-            currx = next;
-        } else break;
-    }
-
-    print("\nxprint\n", .{});
-    root.xprint(0);
-
-    return root;
-}
-
-pub const XpathList = ArrayList(*UnmanagedXpath);
+pub const XpathList = ArrayList(*Xpath);
 
 // zig test src/xpath.zig --test-filter xpath_dev
 test "xpath_dev" {
@@ -268,7 +273,7 @@ test "xpath_dev" {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const xpath = try Xpath(allocator, "/sFEi65535g42");
+    const xpath = try Xpath.init(allocator, "/sFEi65535g42");
     defer xpath.deinit();
 }
 
@@ -277,7 +282,7 @@ test "null_xpath" {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const xpath = try Xpath(allocator, "/");
+    const xpath = try Xpath.init(allocator, "/");
     defer xpath.deinit();
 
     try expect(xpath.next == null);
@@ -289,7 +294,7 @@ test "simple_xpath" {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const xpath = try Xpath(allocator, "/sAB");
+    const xpath = try Xpath.init(allocator, "/sAB");
     defer xpath.deinit();
 
     if (xpath.next) |xpath1| {

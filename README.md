@@ -3,6 +3,7 @@
 ## Dev
 
 ```bash
+zig run -freference-trace=12 src/main.zig -- -mh -f tmp/test1.txt -vv -r s01
 zig test src/xpath.zig --test-filter simple_xpath
 ```
 
