@@ -33,7 +33,7 @@ fn scanner(allocator: Allocator, query: []const u8) !ArrayList(Token) {
     var qpos: usize = 0;
     while (qpos < query.len) {
         const qc = query[qpos];
-        print("query c: {d} '{c}'\n", .{ qpos, qc });
+        // print("query c: {d} '{c}'\n", .{ qpos, qc });
 
         var token = Token{};
         token.value[0] = qc;

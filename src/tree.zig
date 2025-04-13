@@ -68,14 +68,17 @@ pub const Node = struct {
         print("addInput({*}, {d}, {d}) -> count: {d}\n", .{ self, input_line.len, max_parse_level, self.count });
 
         if (input_line.len == 0) {
+            print("-> input line is empty\n", .{});
             return;
         }
+        print("-> input_line: {any}\n", .{input_line});
 
         var rest_parse_rules = XpathList.init(self.allocator);
-        defer rest_parse_rules.deinit();
+        defer rest_parse_rules.deinit(); // TODO: solve problem
 
         var selected = ArrayList(u8).init(self.allocator);
         defer selected.deinit();
+        var rest: []u8 = undefined;
 
         for (self.parse_rules.items) |rule| {
             print("\x1b[32m-> parse rule: {any} {any}\x1b[0m\n", .{ rule.kind, rule.nvalue });
@@ -125,6 +128,7 @@ pub const Node = struct {
                 try rest_parse_rules.append(currx);
             }
 
+            rest = input_line[input_pos..];
             print("-> rest: {X}\n", .{input_line[input_pos..]});
             print("-> selected: {X}\n", .{selected.items});
             print("-> processed_rules: {any}\n", .{processed_rules});
@@ -134,31 +138,40 @@ pub const Node = struct {
         }
 
         print("-> rest_parse_rules: len={d}\n", .{rest_parse_rules.items.len});
+        print("-> rest: {any}\n", .{rest});
+        print("-> rest is same input: {any}\n", .{rest.len == input_line.len});
 
-        // if (self.node_level >= max_parse_level) {
-        //     return;
-        // }
+        if (self.node_level >= max_parse_level) {
+            return;
+        }
 
-        const key = selected.items;
+        // const key = if (selected.items.len > 0) selected.items else input_line[0..1];
+        var key: []u8 = undefined;
+        if (selected.items.len > 0) {
+            key = selected.items;
+        } else {
+            key = input_line[0..1];
+            rest = input_line[1..];
+        }
         print("key X: {X}\n", .{key});
+        print("rest X: {X}\n", .{rest});
 
         print("get()\n", .{});
         if (self.children.get(key)) |node| {
             print("get -> found\n", .{});
-            try node.addInput(input_line[1..], max_parse_level);
+            try node.addInput(rest, max_parse_level);
             return;
         }
         print("get -> not found\n", .{});
 
-        var child = Node.init(self.allocator, self, self.parse_rules);
-        // child.value = key;
-        // child.node_level = self.node_level + 1;
-        try child.addInput(input_line[1..], max_parse_level);
+        var child = Node.init(self.allocator, self, &rest_parse_rules);
+        child.value = key;
+        child.node_level = self.node_level + 1;
+        try child.addInput(rest, max_parse_level);
 
         try self.children.put(key, child);
 
-        // self.reportMaxNodeLevel(self.node_level);
-        // print("\n", .{});
+        self.reportMaxNodeLevel(self.node_level);
     }
 
     pub fn show(
