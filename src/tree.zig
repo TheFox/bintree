@@ -55,7 +55,7 @@ pub const Node = struct {
     }
 
     pub fn reportMaxNodeLevel(self: *Node, max_node_level: usize) void {
-        print("-> reportMaxNodeLevel: {any}\n", .{max_node_level});
+        // print("-> reportMaxNodeLevel: {any}\n", .{max_node_level});
         if (max_node_level > self.max_node_level) {
             self.max_node_level = max_node_level - self.node_level;
         }
@@ -84,8 +84,6 @@ pub const Node = struct {
         var rest: []u8 = undefined;
 
         for (self.parse_rules.items) |rule| {
-            print("\x1b[32m-> parse rule: {d} {any} {any}\x1b[0m\n", .{ selected.items.len, rule.kind, rule.nvalue });
-
             var break_rules = false;
             var currx: *Xpath = rule;
             var next_xpath = false;
@@ -93,9 +91,6 @@ pub const Node = struct {
             var input_pos: usize = 0;
             var select_left: usize = 0;
             for (input_line) |input_c| {
-                print("--> input_c: {X} {d}\n", .{ input_c, input_pos });
-                print("--> currx: {any}\n", .{currx.nvalue});
-
                 switch (currx.kind) {
                     .init, .root => {
                         unreachable;
@@ -105,12 +100,10 @@ pub const Node = struct {
                     },
                     .select => {
                         if (currx.nvalue == input_c) {
-                            print("\x1b[32m---> equals: {X}\x1b[0m\n", .{input_c});
                             try selected.append(input_c);
                             break_rules = true;
                             next_xpath = true;
                         } else {
-                            print("\x1b[32m---> break input [select]\x1b[0m\n", .{});
                             break;
                         }
                     },
@@ -118,10 +111,7 @@ pub const Node = struct {
                         unreachable;
                     },
                     .delete => {
-                        print("---> delete\n", .{});
-
                         if (currx.nvalue == input_c) {
-                            print("\x1b[32m---> delete: {X}\x1b[0m\n", .{input_c});
                             break_rules = true;
                             next_xpath = true;
                         }
@@ -129,7 +119,6 @@ pub const Node = struct {
                     .group => {
                         if (select_left > 0) {
                             try selected.append(input_c);
-                            print("---> group: left={d} {any}\n", .{ select_left, selected.items });
                             select_left -= 1;
                             if (select_left == 0) {
                                 break_rules = true;
@@ -137,11 +126,9 @@ pub const Node = struct {
                             }
                         } else {
                             if (currx.nvalue) |nvalue| {
-                                print("---> nvalue={d}\n", .{nvalue});
                                 select_left = @intCast(nvalue);
                                 select_left -= 1;
                                 try selected.append(input_c);
-                                print("---> group: left={d} {any}\n", .{ select_left, selected.items });
                             }
                         }
                     },
@@ -153,7 +140,6 @@ pub const Node = struct {
                     if (currx.next) |next| {
                         currx = next;
                     } else {
-                        print("-> xpath_left is false\n", .{});
                         xpath_left = false;
                         break;
                     }
@@ -161,28 +147,17 @@ pub const Node = struct {
             }
 
             if (xpath_left) {
-                print("-> has xpath_left\n", .{});
                 try rest_parse_rules.append(currx);
-            } else {
-                print("-> NO xpath_left\n", .{});
-            }
+            } else {}
 
             rest = input_line[input_pos..];
-            print("-> rest: {X}\n", .{input_line[input_pos..]});
-            print("-> selected: {X}\n", .{selected.items});
-            print("-> break_rules: {any}\n", .{break_rules});
 
             if (break_rules) {
                 break;
             }
         }
 
-        print("-> rest_parse_rules: len={d}\n", .{rest_parse_rules.items.len});
-        print("-> rest: {*} {d}\n", .{ rest, rest.len });
-        print("-> rest is same input: {any}\n", .{rest.len == input_line.len});
-
         if (self.node_level >= max_parse_level) {
-            print("-> max parse level reached: {d}\n", .{self.node_level});
             return;
         }
 
@@ -210,19 +185,12 @@ pub const Node = struct {
         }
         print("-> get() -> not found\n", .{});
 
-        print("-> key X2: {X}\n", .{key});
-        const key_str = try std.fmt.allocPrint(self.allocator, "{s}", .{key});
-        print("-> key_str: {X}\n", .{key_str});
-
         var child = Node.init(self.allocator, self, &rest_parse_rules);
-        child.value = key_str;
+        child.value = key;
         child.node_level = self.node_level + 1;
         try child.addInput(rest, max_parse_level);
 
-        print("-> key C: {X}\n", .{key_str});
-        try self.children.put(key_str, child);
-
-        print("-> children: {d}\n", .{self.children.count()});
+        try self.children.put(key, child);
 
         self.reportMaxNodeLevel(self.node_level);
     }
@@ -242,9 +210,6 @@ pub const Node = struct {
         // Char: ' ' => $'\302\240'
         // Char: '└' => $'\342\224\224'
 
-        // print("show()\n", .{});
-        // print("-> node_level: {d}\n", .{self.node_level});
-
         if (cur_level > 0)
             for (0..(cur_level - 1)) |n|
                 print("{s}    ", .{prefix_path.items[n]});
@@ -257,8 +222,6 @@ pub const Node = struct {
                 self.children.count(),
             });
         } else {
-            // const vh = fmtSliceHexUpper(self.value);
-
             const iprefix = if (is_last) "└" else "├";
             print("{s}─ 0x{X} count={d} level={d} depth={d} children={d}\n", .{
                 iprefix,
@@ -271,8 +234,6 @@ pub const Node = struct {
         }
 
         if (cur_level >= max_show_level) {
-            // print("cur_level: {d}\n", .{cur_level});
-            // print("max_show_level: {d}\n", .{max_show_level});
             return;
         }
 
@@ -281,11 +242,10 @@ pub const Node = struct {
         var keys = ArrayList([]const u8).init(self.allocator);
         defer keys.deinit();
         while (iter.next()) |entry| {
-            // print("-> iter key: {X}\n", .{entry.key_ptr.*});
             try keys.append(entry.key_ptr.*);
         }
         sort([]const u8, keys.items, {}, comptime compareStringsAsc);
-        // print("keys: {d}\n", .{keys.items.len});
+        print("keys: {d}\n", .{keys.items.len});
 
         // Filter
         var filered = ArrayList(*Node).init(self.allocator);
@@ -294,6 +254,8 @@ pub const Node = struct {
             if (self.children.get(key)) |child|
                 if (child.count >= arg_min_count_level)
                     try filered.append(child);
+
+        print("filered: {d}\n", .{filered.items.len});
 
         // Print
         const child_len = filered.items.len;

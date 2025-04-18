@@ -129,15 +129,9 @@ pub const Xpath = struct {
         for (tokenz.items) |token| {
             var next_xpath: bool = false;
 
-            // print("\n", .{});
-            // print("currx1: {*}\n", .{currx1});
-            // print("blen: {d}\n", .{currx1.blen});
-            // print("pre_kind: {any}\n", .{pre_kind});
-
             switch (token.kind) {
                 .init => {},
                 .slash => {
-                    // print("slash\n", .{});
                     currx1.kind = .level;
                     next_xpath = true;
                 },
