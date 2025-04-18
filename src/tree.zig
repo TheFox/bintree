@@ -295,11 +295,6 @@ pub const Node = struct {
                 if (child.count >= arg_min_count_level)
                     try filered.append(child);
 
-        // for (keys.items) |key| {
-        //     print("-> key: {X}\n", .{key});
-        // }
-        // print("filered: {d}\n", .{filered.items.len});
-
         // Print
         const child_len = filered.items.len;
         var loop_n: usize = 0;
@@ -344,32 +339,4 @@ test "simple_string" {
     print("node.count: {d}\n", .{node.count});
     try expect(node.count == 2);
     try expect(node.children.count() == 1);
-
-    // if (node.children.get(1)) |subnode1| {
-    //     try expect(subnode1.value == 1);
-    //     try expect(subnode1.children.count() == 1);
-
-    //     if (subnode1.children.get(2)) |subnode2| {
-    //         try expect(subnode2.value == 2);
-    //         try expect(subnode2.children.count() == 2);
-
-    //         if (subnode2.children.get(3)) |subnode3| {
-    //             try expect(subnode3.value == 3);
-    //             try expect(subnode3.children.count() == 0);
-    //         } else {
-    //             try expect(false);
-    //         }
-
-    //         if (subnode2.children.get(4)) |subnode4| {
-    //             try expect(subnode4.value == 4);
-    //             try expect(subnode4.children.count() == 0);
-    //         } else {
-    //             try expect(false);
-    //         }
-    //     } else {
-    //         try expect(false);
-    //     }
-    // } else {
-    //     try expect(false);
-    // }
 }

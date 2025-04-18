@@ -141,9 +141,11 @@ pub const Xpath = struct {
                     currx1.kind = .level;
                     next_xpath = true;
                 },
-                .number, .char => {
-                    // print("char: {c}\n", .{token.value[0]});
+                .number => {
+                    print("number: {d}\n", .{token.value[0]});
+
                     if (read_bin_val > 0) {
+                        print("read_bin_val: {d}\n", .{read_bin_val});
                         currx1.bvalue[currx1.blen] = token.value[0];
                         currx1.blen += 1;
 
@@ -152,6 +154,7 @@ pub const Xpath = struct {
                             next_xpath = true;
                         }
                     } else if (read_num_val > 0) {
+                        print("read_num_val: {d}\n", .{read_num_val});
                         currx1.bvalue[currx1.blen] = token.value[0];
                         currx1.blen += 1;
 
@@ -159,36 +162,39 @@ pub const Xpath = struct {
                         if (read_num_val == 0) {
                             next_xpath = true;
                         }
-                    } else {
-                        switch (token.value[0]) {
-                            's' => {
-                                // select a specific byte value
-                                currx1.kind = .select;
-                                read_bin_val = 2;
-                            },
-                            'i' => {
-                                // ignore the next n bytes
-                                // n = decimal number
-                                currx1.kind = .ignore;
-                                read_num_val = 5; // max '65535'
-                            },
-                            'd' => {
-                                // delete a specific byte value.
-                                // like ignore (i) but with a specific byte value.
-                                currx1.kind = .delete;
-                                read_bin_val = 2;
-                            },
-                            'g' => {
-                                // group the next n bytes
-                                // n = decimal number
-                                currx1.kind = .group;
-                                read_num_val = 5; // max '65535'
-                            },
-                            else => {
-                                print("Undefined token.value[0]: {c}\n", .{token.value[0]});
-                                unreachable;
-                            },
-                        }
+                    }
+                },
+                .char => {
+                    print("char: {c}\n", .{token.value[0]});
+
+                    switch (token.value[0]) {
+                        's' => {
+                            // select a specific byte value
+                            currx1.kind = .select;
+                            read_bin_val = 2;
+                        },
+                        'i' => {
+                            // ignore the next n bytes
+                            // n = decimal number
+                            currx1.kind = .ignore;
+                            read_num_val = 5; // max '65535'
+                        },
+                        'd' => {
+                            // delete a specific byte value.
+                            // like ignore (i) but with a specific byte value.
+                            currx1.kind = .delete;
+                            read_bin_val = 2;
+                        },
+                        'g' => {
+                            // group the next n bytes
+                            // n = decimal number
+                            currx1.kind = .group;
+                            read_num_val = 5; // max '65535'
+                        },
+                        else => {
+                            print("Undefined token.value[0]: {c}\n", .{token.value[0]});
+                            unreachable;
+                        },
                     }
                 },
                 .point => {
@@ -218,10 +224,10 @@ pub const Xpath = struct {
             pre_kind = token.kind;
         }
 
-        // print("\nfrom root\n", .{});
+        print("\nfrom root\n", .{});
         var currx2: ?*Xpath = root;
         while (currx2) |xitem| {
-            // print("curr2: {any}\n", .{xitem.kind});
+            print("curr2: {any} blen={d} bval={any}\n", .{ xitem.kind, xitem.blen, xitem.bvalue });
 
             if (xitem.blen > 0) {
                 switch (xitem.kind) {
