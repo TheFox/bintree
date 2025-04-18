@@ -90,6 +90,7 @@ pub const Node = struct {
             var xpath_left = true;
             var input_pos: usize = 0;
             var select_left: usize = 0;
+            var ignore_left: usize = 0;
             for (input_line) |input_c| {
                 switch (currx.kind) {
                     .init, .root => {
@@ -108,7 +109,18 @@ pub const Node = struct {
                         }
                     },
                     .ignore => {
-                        unreachable;
+                        if (ignore_left > 0) {
+                            ignore_left -= 1;
+                            if (ignore_left == 0) {
+                                break_rules = true;
+                                next_xpath = true;
+                            }
+                        } else {
+                            if (currx.nvalue) |nvalue| {
+                                ignore_left = @intCast(nvalue);
+                                ignore_left -= 1;
+                            }
+                        }
                     },
                     .delete => {
                         if (currx.nvalue == input_c) {
@@ -171,13 +183,13 @@ pub const Node = struct {
             print("\x1b[33m-> parse_rules & selected: (0)\x1b[0m\n", .{});
             key = input_line[0..1];
             rest = input_line[1..];
-            print("-> key B: {X}\n", .{key});
+            // print("-> key B: {X}\n", .{key});
         }
 
         const key_str = try std.fmt.allocPrint(self.allocator, "{s}", .{key});
 
+        // print("-> key Y: {X}\n", .{key_str});
         print("-> key X: {X}\n", .{key});
-        print("-> key Y: {X}\n", .{key_str});
         print("-> rest X: {X}\n", .{rest});
 
         print("-> get()\n", .{});

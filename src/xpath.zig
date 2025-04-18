@@ -136,7 +136,7 @@ pub const Xpath = struct {
                     next_xpath = true;
                 },
                 .number => {
-                    print("number: {d}\n", .{token.value[0]});
+                    print("is number: 0x{X} '{c}'\n", .{ token.value[0], token.value[0] });
 
                     if (read_bin_val > 0) {
                         print("read_bin_val: {d}\n", .{read_bin_val});
@@ -159,7 +159,7 @@ pub const Xpath = struct {
                     }
                 },
                 .char => {
-                    print("char: {c}\n", .{token.value[0]});
+                    print("is char: {c}\n", .{token.value[0]});
 
                     switch (token.value[0]) {
                         's' => {
@@ -234,7 +234,7 @@ pub const Xpath = struct {
                     },
                 }
 
-                // print("currx2.nvalue: {any}\n", .{xitem.nvalue});
+                print("currx2.nvalue: {any}\n", .{xitem.nvalue});
             }
 
             currx2 = xitem.next;
