@@ -184,14 +184,19 @@ pub const Xpath = struct {
                                 read_num_val = 5; // max '65535'
                             },
                             else => {
-                                // print("Undefined token.value[0]: {c}\n", .{token.value[0]});
+                                print("Undefined token.value[0]: {c}\n", .{token.value[0]});
                                 unreachable;
                             },
                         }
                     }
                 },
+                .point => {
+                    print("point any\n", .{});
+                    currx1.kind = .select;
+                    read_bin_val = 2;
+                },
                 else => {
-                    // print("Undefined token.kind: {any}\n", .{token});
+                    print("Undefined token.kind: {any}\n", .{token});
                     unreachable;
                 },
             }

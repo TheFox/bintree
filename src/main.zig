@@ -18,9 +18,12 @@ const run_mode = @import("builtin").mode;
 pub fn main() !void {
     print("run_mode: {any}\n", .{run_mode});
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // const allocator = gpa.allocator();
+    // defer _ = gpa.deinit();
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
@@ -160,6 +163,7 @@ pub fn main() !void {
         return;
     }
 
+    // var root = RootNode(allocator);
     var root = RootNode(allocator, &parse_rules);
 
     var lines = ArrayList(*ArrayList(u8)).init(allocator);
@@ -177,8 +181,13 @@ pub fn main() !void {
 
         var line_buffer: [4096]u8 = undefined;
         while (try in_stream.readUntilDelimiterOrEof(&line_buffer, arg_delimiter)) |line| {
-            if (arg_verbose_level >= 3)
+            if (arg_verbose_level >= 3) {
                 print("line: '{s}'\n", .{line});
+            }
+            if (line[0] == '#') {
+                //print("skip line\n", .{});
+                continue;
+            }
 
             const input_line = allocator.create(ArrayList(u8)) catch unreachable;
             input_line.* = ArrayList(u8).init(allocator);
@@ -231,6 +240,8 @@ pub fn main() !void {
     if (arg_verbose_level >= 1) {
         print("finished parsing files\n", .{});
     }
+
+    print("root.children: {d}\n", .{root.children.count()});
 
     const prefix_path = ArrayList([]const u8).init(allocator);
 
