@@ -84,47 +84,79 @@ pub const Node = struct {
         var rest: []u8 = undefined;
 
         for (self.parse_rules.items) |rule| {
-            print("\x1b[32m-> parse rule: {any} {any}\x1b[0m\n", .{ rule.kind, rule.nvalue });
+            print("\x1b[32m-> parse rule: {d} {any} {any}\x1b[0m\n", .{ selected.items.len, rule.kind, rule.nvalue });
 
-            var processed_rules = false;
+            var break_rules = false;
             var currx: *Xpath = rule;
+            var next_xpath = false;
             var xpath_left = true;
             var input_pos: usize = 0;
+            var select_left: usize = 0;
             for (input_line) |input_c| {
                 print("--> input_c: {X} {d}\n", .{ input_c, input_pos });
-
                 print("--> currx: {any}\n", .{currx.nvalue});
 
                 switch (currx.kind) {
+                    .init, .root => {
+                        unreachable;
+                    },
+                    .level => {
+                        unreachable;
+                    },
                     .select => {
                         if (currx.nvalue == input_c) {
                             print("\x1b[32m---> equals: {X}\x1b[0m\n", .{input_c});
                             try selected.append(input_c);
-                            processed_rules = true;
+                            break_rules = true;
+                            next_xpath = true;
                         } else {
                             print("\x1b[32m---> break input [select]\x1b[0m\n", .{});
                             break;
                         }
+                    },
+                    .ignore => {
+                        unreachable;
                     },
                     .delete => {
                         print("---> delete\n", .{});
 
                         if (currx.nvalue == input_c) {
                             print("\x1b[32m---> delete: {X}\x1b[0m\n", .{input_c});
-                            processed_rules = true;
+                            break_rules = true;
+                            next_xpath = true;
                         }
                     },
-                    else => unreachable,
+                    .group => {
+                        if (select_left > 0) {
+                            try selected.append(input_c);
+                            print("---> group: left={d} {any}\n", .{ select_left, selected.items });
+                            select_left -= 1;
+                            if (select_left == 0) {
+                                break_rules = true;
+                                next_xpath = true;
+                            }
+                        } else {
+                            if (currx.nvalue) |nvalue| {
+                                print("---> nvalue={d}\n", .{nvalue});
+                                select_left = @intCast(nvalue);
+                                select_left -= 1;
+                                try selected.append(input_c);
+                                print("---> group: left={d} {any}\n", .{ select_left, selected.items });
+                            }
+                        }
+                    },
                 }
 
                 input_pos += 1;
 
-                if (currx.next) |next| {
-                    currx = next;
-                } else {
-                    print("-> xpath_left is false\n", .{});
-                    xpath_left = false;
-                    break;
+                if (next_xpath) {
+                    if (currx.next) |next| {
+                        currx = next;
+                    } else {
+                        print("-> xpath_left is false\n", .{});
+                        xpath_left = false;
+                        break;
+                    }
                 }
             }
 
@@ -138,8 +170,9 @@ pub const Node = struct {
             rest = input_line[input_pos..];
             print("-> rest: {X}\n", .{input_line[input_pos..]});
             print("-> selected: {X}\n", .{selected.items});
-            print("-> processed_rules: {any}\n", .{processed_rules});
-            if (processed_rules) {
+            print("-> break_rules: {any}\n", .{break_rules});
+
+            if (break_rules) {
                 break;
             }
         }
@@ -154,22 +187,6 @@ pub const Node = struct {
         }
 
         var key: []u8 = undefined;
-        // if (self.parse_rules.items.len > 0) {
-        //     print("\x1b[33m-> parse_rules: {d}\x1b[0m\n", .{self.parse_rules.items.len});
-        //     if (selected.items.len > 0) {
-        //         print("\x1b[33m-> selected.items: {d}\x1b[0m\n", .{selected.items.len});
-        //         key = selected.items;
-        //     } else {
-        //         print("\x1b[33m-> selected.items: (0)\x1b[0m\n", .{});
-        //         // key = input_line[0..1];
-        //         // rest = input_line[1..];
-        //         return;
-        //     }
-        // } else {
-        //     print("\x1b[33m-> parse_rules & selected: (0)\x1b[0m\n", .{});
-        //     key = input_line[0..1];
-        //     rest = input_line[1..];
-        // }
         if (self.parse_rules.items.len > 0 and selected.items.len > 0) {
             print("\x1b[33m-> parse_rules: {d}\x1b[0m\n", .{self.parse_rules.items.len});
             print("\x1b[33m-> selected.items: {d}\x1b[0m\n", .{selected.items.len});

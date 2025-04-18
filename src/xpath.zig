@@ -135,6 +135,7 @@ pub const Xpath = struct {
             // print("pre_kind: {any}\n", .{pre_kind});
 
             switch (token.kind) {
+                .init => {},
                 .slash => {
                     // print("slash\n", .{});
                     currx1.kind = .level;
@@ -194,10 +195,6 @@ pub const Xpath = struct {
                     print("point any\n", .{});
                     currx1.kind = .select;
                     read_bin_val = 2;
-                },
-                else => {
-                    print("Undefined token.kind: {any}\n", .{token});
-                    unreachable;
                 },
             }
 
