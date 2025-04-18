@@ -174,11 +174,14 @@ pub const Node = struct {
             print("-> key B: {X}\n", .{key});
         }
 
+        const key_str = try std.fmt.allocPrint(self.allocator, "{s}", .{key});
+
         print("-> key X: {X}\n", .{key});
+        print("-> key Y: {X}\n", .{key_str});
         print("-> rest X: {X}\n", .{rest});
 
         print("-> get()\n", .{});
-        if (self.children.get(key)) |node| {
+        if (self.children.get(key_str)) |node| {
             print("-> get() -> found\n", .{});
             try node.addInput(rest, max_parse_level);
             return;
@@ -186,11 +189,11 @@ pub const Node = struct {
         print("-> get() -> not found\n", .{});
 
         var child = Node.init(self.allocator, self, &rest_parse_rules);
-        child.value = key;
+        child.value = key_str;
         child.node_level = self.node_level + 1;
         try child.addInput(rest, max_parse_level);
 
-        try self.children.put(key, child);
+        try self.children.put(key_str, child);
 
         self.reportMaxNodeLevel(self.node_level);
     }
@@ -245,17 +248,23 @@ pub const Node = struct {
             try keys.append(entry.key_ptr.*);
         }
         sort([]const u8, keys.items, {}, comptime compareStringsAsc);
-        print("keys: {d}\n", .{keys.items.len});
+        // print("keys: {d}\n", .{keys.items.len});
 
         // Filter
         var filered = ArrayList(*Node).init(self.allocator);
         defer filered.deinit();
-        for (keys.items) |key|
-            if (self.children.get(key)) |child|
-                if (child.count >= arg_min_count_level)
-                    try filered.append(child);
+        for (keys.items) |key| {
+            // print("-> key xpath: {X}\n", .{key});
+            if (self.children.get(key)) |child| {
+                // print("-> key child: {*}\n", .{child});
 
-        print("filered: {d}\n", .{filered.items.len});
+                if (child.count >= arg_min_count_level) {
+                    try filered.append(child);
+                }
+            }
+        }
+
+        // print("filered: {d}\n", .{filered.items.len});
 
         // Print
         const child_len = filered.items.len;
