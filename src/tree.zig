@@ -84,6 +84,11 @@ pub const Node = struct {
         var rest: []u8 = undefined;
 
         for (self.parse_rules.items) |rule| {
+            print("-> parse rule: nv={X} kind={any}\n", .{
+                rule.blen,
+                rule.kind,
+            });
+
             var break_rules = false;
             var currx: *Xpath = rule;
             var next_xpath = false;
@@ -112,7 +117,7 @@ pub const Node = struct {
                         if (ignore_left > 0) {
                             ignore_left -= 1;
                             if (ignore_left == 0) {
-                                break_rules = true;
+                                // break_rules = true;
                                 next_xpath = true;
                             }
                         } else {
@@ -160,7 +165,7 @@ pub const Node = struct {
 
             if (xpath_left) {
                 try rest_parse_rules.append(currx);
-            } else {}
+            }
 
             rest = input_line[input_pos..];
 
@@ -173,24 +178,28 @@ pub const Node = struct {
             return;
         }
 
+        print("\x1b[33m-> parse_rules: {d}\x1b[0m\n", .{self.parse_rules.items.len});
+        print("\x1b[33m-> selected.items: {d}\x1b[0m\n", .{selected.items.len});
         var key: []u8 = undefined;
-        if (self.parse_rules.items.len > 0 and selected.items.len > 0) {
-            print("\x1b[33m-> parse_rules: {d}\x1b[0m\n", .{self.parse_rules.items.len});
-            print("\x1b[33m-> selected.items: {d}\x1b[0m\n", .{selected.items.len});
-            key = selected.items;
-            print("-> key A: {X}\n", .{key});
+        if (self.parse_rules.items.len > 0) {
+            if (selected.items.len > 0) {
+                key = selected.items;
+                print("-> key A: {X}\n", .{key});
+            } else {
+                print("\x1b[0;31m-> no parse rules, no selected string\x1b[0m\n", .{});
+                return;
+            }
         } else {
             print("\x1b[33m-> parse_rules & selected: (0)\x1b[0m\n", .{});
             key = input_line[0..1];
             rest = input_line[1..];
-            // print("-> key B: {X}\n", .{key});
         }
 
-        const key_str = try std.fmt.allocPrint(self.allocator, "{s}", .{key});
-
-        // print("-> key Y: {X}\n", .{key_str});
         print("-> key X: {X}\n", .{key});
         print("-> rest X: {X}\n", .{rest});
+
+        const key_str = try std.fmt.allocPrint(self.allocator, "{s}", .{key});
+        print("-> key_str: {X}\n", .{key_str});
 
         print("-> get()\n", .{});
         if (self.children.get(key_str)) |node| {
@@ -198,7 +207,7 @@ pub const Node = struct {
             try node.addInput(rest, max_parse_level);
             return;
         }
-        print("-> get() -> not found\n", .{});
+        print("-> get() -> create node\n", .{});
 
         var child = Node.init(self.allocator, self, &rest_parse_rules);
         child.value = key_str;

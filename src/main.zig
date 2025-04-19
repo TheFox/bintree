@@ -163,7 +163,6 @@ pub fn main() !void {
         return;
     }
 
-    // var root = RootNode(allocator);
     var root = RootNode(allocator, &parse_rules);
 
     var lines = ArrayList(*ArrayList(u8)).init(allocator);
@@ -185,7 +184,9 @@ pub fn main() !void {
                 print("line: '{s}'\n", .{line});
             }
             if (line[0] == '#') {
-                //print("skip line\n", .{});
+                if (arg_verbose_level >= 3) {
+                    print("skip line\n", .{});
+                }
                 continue;
             }
 
