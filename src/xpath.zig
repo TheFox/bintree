@@ -141,6 +141,11 @@ pub const Xpath = struct {
                         },
                     }
 
+                    const min_read: u8 = switch (ctoken.value[0]) {
+                        's', 'd' => 2,
+                        'i', 'g' => 1,
+                        else => 0,
+                    };
                     const max_read: u8 = switch (ctoken.value[0]) {
                         's', 'd' => 2,
                         'i', 'g' => 5,
@@ -171,7 +176,6 @@ pub const Xpath = struct {
                             const is_valid = indexOfScalar(Kind, valid_kinds, tokenz.items[npos].kind);
                             print("-> is_valid: {any}\n", .{is_valid});
                             if (is_valid == null) {
-                                // If the next token type is not what we expect, break.
                                 break;
                             }
 
@@ -180,6 +184,10 @@ pub const Xpath = struct {
                             print("-> next token: {any}\n", .{ntoken});
                             currx.bvalue[currx.blen] = ntoken.value[0];
                             currx.blen += 1;
+                        }
+                        if (currx.blen < min_read) {
+                            print("-> ERROR: expected at least {d} byte(s), got {d} for type {any}\n", .{ min_read, currx.blen, currx.kind });
+                            unreachable;
                         }
                         if (nval_base > 0) {
                             print("-> parseInt {d} {any}\n", .{ currx.blen, currx.bvalue[0..currx.blen] });
