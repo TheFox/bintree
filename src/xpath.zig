@@ -211,57 +211,6 @@ pub const Xpath = struct {
                 currx = next;
             }
         }
-        //                     read_num_val = 0;
-        //                 },
-        //                 'g' => {
-        //
-        //                     // n = decimal number
-        //                     currx1.kind = .group;
-        //                     read_bin_val = 0;
-        //                     read_num_val = 5; // max '65535'
-        //                 },
-
-        //             }
-        //         },
-        //         .point => {
-        //             print("-> point any\n", .{});
-        //             currx1.kind = .select;
-        //             read_bin_val = 2;
-        //         },
-        //     }
-
-        //     // print("token: {any}\n", .{token});
-
-        //     token_c += 1;
-        //     if (token_c == tokenz.items.len) {
-        //         break;
-        //     }
-
-        //     pre_kind = token.kind;
-        // }
-
-        // print("\nfrom root\n", .{});
-        // var currx2: ?*Xpath = root;
-        // while (currx2) |xitem| {
-        //     print("curr2: {any} blen={d} bval={any}\n", .{ xitem.kind, xitem.blen, xitem.bvalue });
-
-        //     if (xitem.blen > 0) {
-        //         switch (xitem.kind) {
-        //             .init, .root, .level => {},
-        //             .select, .delete => {
-        //                 xitem.nvalue = try parseInt(u16, xitem.bvalue[0..xitem.blen], 16);
-        //             },
-        //             .ignore, .group => {
-        //                 xitem.nvalue = try parseInt(u16, xitem.bvalue[0..xitem.blen], 10);
-        //             },
-        //         }
-
-        //         print("-> bvalue: {any}\n", .{xitem.bvalue});
-        //         print("-> nvalue: {any}\n", .{xitem.nvalue});
-        //     }
-
-        //     currx2 = xitem.next;
-        // }
 
         print("root.xprint\n", .{});
         root.xprint(0);
