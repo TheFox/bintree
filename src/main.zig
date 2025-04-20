@@ -147,16 +147,20 @@ pub fn main() !void {
     }
 
     if (arg_verbose_level >= 1) {
+        print("\n", .{});
         print("arg_delimiter: {d}\n", .{arg_delimiter});
         print("arg_single_char_input_mode: {any}\n", .{arg_single_char_input_mode});
         print("arg_max_parse_level: {d}\n", .{arg_max_parse_level});
         print("arg_max_show_level: {d}\n", .{arg_max_show_level});
         print("arg_min_count_level: {d}\n", .{arg_min_count_level});
+        print("\n", .{});
     }
     if (arg_verbose_level >= 2) {
+        print("parse_rules.items: {d}\n", .{parse_rules.items.len});
         for (parse_rules.items) |xpath_i| {
-            print("parse_rule: {any}\n", .{xpath_i.nvalue});
+            print("parse_rule: {any}\n", .{xpath_i.kind});
         }
+        print("\n", .{});
     }
     if (arg_single_char_input_mode == .unknown) {
         print("ERROR: please provide a input mode -m bin or -m hex\n", .{});

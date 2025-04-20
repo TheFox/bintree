@@ -3,9 +3,10 @@ const print = std.debug.print;
 const Allocator = std.mem.Allocator;
 const expect = std.testing.expect;
 const parseInt = std.fmt.parseInt;
+const indexOfScalar = std.mem.indexOfScalar;
+const eql = std.mem.eql;
 const ArrayList = std.ArrayList;
 const TOKEN_VAL_MAX_LEN = 8;
-const eql = std.mem.eql;
 
 const Kind = enum {
     init,
@@ -63,36 +64,6 @@ fn scanner(allocator: Allocator, query: []const u8) !ArrayList(Token) {
     return tokenz;
 }
 
-test "scanner" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
-
-    const tokenz = try scanner(allocator, "/s30/g5/.");
-    defer tokenz.deinit();
-
-    // try expect(tokenz.items.len == 8);
-
-    // try expect(tokenz.items[0].ttype == .slash);
-    // try expect(tokenz.items[1].ttype == .xtype);
-    // try expect(tokenz.items[2].ttype == .number);
-    // try expect(tokenz.items[3].ttype == .slash);
-    // try expect(tokenz.items[4].ttype == .xtype);
-    // try expect(tokenz.items[5].ttype == .number);
-    // try expect(tokenz.items[6].ttype == .slash);
-    // try expect(tokenz.items[7].ttype == .xtype);
-
-    // try expect(tokenz.items[1].xsubtype == .xselect);
-    // try expect(tokenz.items[4].xsubtype == .xgroup);
-    // try expect(tokenz.items[7].xsubtype == .xany);
-
-    // var item = tokenz.items[2];
-    // try expect(eql(u8, item.value[0..item.vlen], "30"));
-
-    // item = tokenz.items[5];
-    // try expect(eql(u8, item.value[0..item.vlen], "5"));
-}
-
 pub const Xpath = struct {
     allocator: Allocator,
     next: ?*Xpath = null,
@@ -110,7 +81,7 @@ pub const Xpath = struct {
     } = undefined,
 
     pub fn init(allocator: Allocator, query: []const u8) !*Xpath {
-        // print("Xpath scanner\n", .{});
+        print("Xpath scanner\n", .{});
         const tokenz = try scanner(allocator, query);
         defer tokenz.deinit();
 
@@ -120,127 +91,171 @@ pub const Xpath = struct {
             .kind = .root,
         };
 
-        // print("\nXpath tokenz\n", .{});
-        var currx1: *Xpath = root;
-        var pre_kind: Kind = .init;
-        var token_c: usize = 0;
-        var read_bin_val: u8 = 0;
-        var read_num_val: u8 = 0;
-        for (tokenz.items) |token| {
+        print("\nXpath tokenz: {d}\n", .{tokenz.items.len});
+        var currx: *Xpath = root;
+        var tpos: usize = 0;
+        while (tpos < tokenz.items.len) {
+            const ctoken = tokenz.items[tpos];
+            print("token: {d} {any}\n", .{ tpos, ctoken });
+
             var next_xpath: bool = false;
 
-            switch (token.kind) {
-                .init => {},
+            switch (ctoken.kind) {
+                .init => {
+                    unreachable;
+                },
                 .slash => {
-                    currx1.kind = .level;
+                    currx.kind = .level;
                     next_xpath = true;
                 },
                 .number => {
-                    print("is number: 0x{X} '{c}'\n", .{ token.value[0], token.value[0] });
-
-                    if (read_bin_val > 0) {
-                        print("read_bin_val: {d}\n", .{read_bin_val});
-                        currx1.bvalue[currx1.blen] = token.value[0];
-                        currx1.blen += 1;
-
-                        read_bin_val -= 1;
-                        if (read_bin_val == 0) {
-                            next_xpath = true;
-                        }
-                    } else if (read_num_val > 0) {
-                        print("read_num_val: {d}\n", .{read_num_val});
-                        currx1.bvalue[currx1.blen] = token.value[0];
-                        currx1.blen += 1;
-
-                        read_num_val -= 1;
-                        if (read_num_val == 0) {
-                            next_xpath = true;
-                        }
-                    }
+                    unreachable;
                 },
                 .char => {
-                    print("is char: {c}\n", .{token.value[0]});
-
-                    switch (token.value[0]) {
+                    switch (ctoken.value[0]) {
                         's' => {
                             // select a specific byte value
-                            currx1.kind = .select;
-                            read_bin_val = 2;
+                            print("-> select\n", .{});
+                            currx.kind = .select;
                         },
                         'i' => {
                             // ignore the next n bytes
-                            // n = decimal number
-                            currx1.kind = .ignore;
-                            read_num_val = 5; // max '65535'
+                            // n = decimal number, max 65535
+                            print("-> ignore\n", .{});
+                            currx.kind = .ignore;
                         },
                         'd' => {
                             // delete a specific byte value.
-                            // like ignore (i) but with a specific byte value.
-                            currx1.kind = .delete;
-                            read_bin_val = 2;
+                            // like (i)gnore but with a specific byte value.
+                            print("-> delete\n", .{});
+                            currx.kind = .delete;
                         },
                         'g' => {
                             // group the next n bytes
-                            // n = decimal number
-                            currx1.kind = .group;
-                            read_num_val = 5; // max '65535'
+                            print("-> group\n", .{});
+                            currx.kind = .group;
                         },
                         else => {
-                            print("Undefined token.value[0]: {c}\n", .{token.value[0]});
+                            print("Undefined token.value[0]: {c}\n", .{ctoken.value[0]});
                             unreachable;
                         },
                     }
+
+                    const max_read: u8 = switch (ctoken.value[0]) {
+                        's', 'd' => 2,
+                        'i', 'g' => 5,
+                        else => 0,
+                    };
+
+                    const nval_base: u8 = switch (ctoken.value[0]) {
+                        's', 'd' => 16,
+                        'i', 'g' => 10,
+                        else => 0,
+                    };
+
+                    const valid_kinds: []const Kind = switch (ctoken.value[0]) {
+                        's', 'd' => &[_]Kind{ .char, .number },
+                        'i', 'g' => &[_]Kind{.number},
+                        else => &[_]Kind{},
+                    };
+
+                    next_xpath = true;
+
+                    if (max_read > 0) {
+                        var n: u8 = 0;
+                        while (tpos < tokenz.items.len and n < max_read) : (n += 1) {
+                            const npos = tpos + 1;
+                            if (npos >= tokenz.items.len) {
+                                break;
+                            }
+                            const is_valid = indexOfScalar(Kind, valid_kinds, tokenz.items[npos].kind);
+                            print("-> is_valid: {any}\n", .{is_valid});
+                            if (is_valid == null) {
+                                // If the next token type is not what we expect, break.
+                                break;
+                            }
+
+                            tpos = npos;
+                            const ntoken = tokenz.items[tpos];
+                            print("-> next token: {any}\n", .{ntoken});
+                            currx.bvalue[currx.blen] = ntoken.value[0];
+                            currx.blen += 1;
+                        }
+                        if (nval_base > 0) {
+                            print("-> parseInt {d} {any}\n", .{ currx.blen, currx.bvalue[0..currx.blen] });
+                            currx.nvalue = try parseInt(u16, currx.bvalue[0..currx.blen], nval_base);
+                        }
+                    }
                 },
                 .point => {
-                    print("point any\n", .{});
-                    currx1.kind = .select;
-                    read_bin_val = 2;
+                    unreachable;
                 },
             }
 
-            // print("token.item: {any}\n", .{token});
-
-            token_c += 1;
-            if (token_c == tokenz.items.len) {
-                break;
-            }
-
-            if (next_xpath) {
+            tpos += 1;
+            const is_last = tpos == tokenz.items.len;
+            if (next_xpath and !is_last) {
                 const next = allocator.create(Xpath) catch unreachable;
                 next.* = Xpath{
                     .allocator = allocator,
                 };
-                currx1.next = next;
-                currx1 = next;
-                // print("next: {*}\n", .{next});
+                currx.next = next;
+                currx = next;
             }
-
-            pre_kind = token.kind;
         }
+        //                     read_num_val = 0;
+        //                 },
+        //                 'g' => {
+        //
+        //                     // n = decimal number
+        //                     currx1.kind = .group;
+        //                     read_bin_val = 0;
+        //                     read_num_val = 5; // max '65535'
+        //                 },
 
-        print("\nfrom root\n", .{});
-        var currx2: ?*Xpath = root;
-        while (currx2) |xitem| {
-            print("curr2: {any} blen={d} bval={any}\n", .{ xitem.kind, xitem.blen, xitem.bvalue });
+        //             }
+        //         },
+        //         .point => {
+        //             print("-> point any\n", .{});
+        //             currx1.kind = .select;
+        //             read_bin_val = 2;
+        //         },
+        //     }
 
-            if (xitem.blen > 0) {
-                switch (xitem.kind) {
-                    .init, .root, .level => {},
-                    .select, .delete => {
-                        xitem.nvalue = try parseInt(u16, xitem.bvalue[0..xitem.blen], 16);
-                    },
-                    .ignore, .group => {
-                        xitem.nvalue = try parseInt(u16, xitem.bvalue[0..xitem.blen], 10);
-                    },
-                }
+        //     // print("token: {any}\n", .{token});
 
-                print("currx2.nvalue: {any}\n", .{xitem.nvalue});
-            }
+        //     token_c += 1;
+        //     if (token_c == tokenz.items.len) {
+        //         break;
+        //     }
 
-            currx2 = xitem.next;
-        }
+        //     pre_kind = token.kind;
+        // }
 
-        // print("\nxprint\n", .{});
+        // print("\nfrom root\n", .{});
+        // var currx2: ?*Xpath = root;
+        // while (currx2) |xitem| {
+        //     print("curr2: {any} blen={d} bval={any}\n", .{ xitem.kind, xitem.blen, xitem.bvalue });
+
+        //     if (xitem.blen > 0) {
+        //         switch (xitem.kind) {
+        //             .init, .root, .level => {},
+        //             .select, .delete => {
+        //                 xitem.nvalue = try parseInt(u16, xitem.bvalue[0..xitem.blen], 16);
+        //             },
+        //             .ignore, .group => {
+        //                 xitem.nvalue = try parseInt(u16, xitem.bvalue[0..xitem.blen], 10);
+        //             },
+        //         }
+
+        //         print("-> bvalue: {any}\n", .{xitem.bvalue});
+        //         print("-> nvalue: {any}\n", .{xitem.nvalue});
+        //     }
+
+        //     currx2 = xitem.next;
+        // }
+
+        print("root.xprint\n", .{});
         root.xprint(0);
 
         return root;
@@ -268,6 +283,15 @@ pub const Xpath = struct {
 };
 
 pub const XpathList = ArrayList(*Xpath);
+
+test "scanner" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    const tokenz = try scanner(allocator, "/s30/g5/.");
+    defer tokenz.deinit();
+}
 
 // zig test src/xpath.zig --test-filter xpath_dev
 test "xpath_dev" {

@@ -83,6 +83,8 @@ pub const Node = struct {
         defer selected.deinit();
         var rest: []u8 = undefined;
 
+        print("self.parse_rules.items len: {d}\n", .{self.parse_rules.items.len});
+
         for (self.parse_rules.items) |rule| {
             print("-> parse rule: nv={X} kind={any}\n", .{
                 rule.blen,
@@ -96,7 +98,8 @@ pub const Node = struct {
             var input_pos: usize = 0;
             var select_left: usize = 0;
             var ignore_left: usize = 0;
-            for (input_line) |input_c| {
+            for (input_line) |input_c| { // TODO rewrite this loop using postion counter and subloops(?)
+                print("input char: '{X}'\n", .{input_c});
                 switch (currx.kind) {
                     .init, .root => {
                         unreachable;
@@ -110,14 +113,16 @@ pub const Node = struct {
                             break_rules = true;
                             next_xpath = true;
                         } else {
+                            print("-> break input_line [select]\n", .{});
                             break;
                         }
                     },
                     .ignore => {
+                        print("-> ignore: {d}\n", .{ignore_left});
                         if (ignore_left > 0) {
                             ignore_left -= 1;
                             if (ignore_left == 0) {
-                                // break_rules = true;
+                                break_rules = true;
                                 next_xpath = true;
                             }
                         } else {
@@ -158,10 +163,11 @@ pub const Node = struct {
                         currx = next;
                     } else {
                         xpath_left = false;
+                        print("-> break input_line [next_xpath, no currx.next]\n", .{});
                         break;
                     }
                 }
-            }
+            } // for input_line
 
             if (xpath_left) {
                 try rest_parse_rules.append(currx);
@@ -170,9 +176,10 @@ pub const Node = struct {
             rest = input_line[input_pos..];
 
             if (break_rules) {
+                print("-> break rules\n", .{});
                 break;
             }
-        }
+        } // for self.parse_rules.items
 
         if (self.node_level >= max_parse_level) {
             return;
