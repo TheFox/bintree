@@ -212,7 +212,7 @@ pub const Xpath = struct {
             }
         }
 
-        print("root.xprint\n", .{});
+        print("\nroot.xprint\n", .{});
         root.xprint(0);
 
         return root;
