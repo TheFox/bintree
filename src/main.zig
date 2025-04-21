@@ -18,9 +18,6 @@ const run_mode = @import("builtin").mode;
 pub fn main() !void {
     print("run_mode: {any}\n", .{run_mode});
 
-    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    // const allocator = gpa.allocator();
-    // defer _ = gpa.deinit();
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
