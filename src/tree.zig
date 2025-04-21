@@ -113,7 +113,10 @@ pub const Node = struct {
                 switch (xpath.kind) {
                     .init => unreachable,
                     .root => unreachable,
-                    .level => unreachable,
+                    .level => {
+                        print("--> level\n", .{});
+                        break;
+                    },
                     .select => {
                         const input_c = input_line[ipos];
                         if (xpath.nvalue == input_c) {
@@ -146,8 +149,12 @@ pub const Node = struct {
                 }
                 currx = xpath.next;
             }
+
             print("-> end ipos: {d}\n", .{ipos});
             rest = input_line[ipos..];
+            if (currx) |curry| {
+                try rest_parse_rules.append(curry);
+            }
         } // for self.parse_rules.items
 
         if (self.node_level >= max_parse_level) {
@@ -184,6 +191,7 @@ pub const Node = struct {
             return;
         }
         print("-> get() -> create node\n", .{});
+        print("-> rest_parse_rules: {d}\n", .{rest_parse_rules.items.len});
 
         var child = Node.init(self.allocator, self, &rest_parse_rules);
         child.value = key_str;

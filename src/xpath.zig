@@ -196,7 +196,10 @@ pub const Xpath = struct {
                     }
                 },
                 .point => {
-                    unreachable;
+                    currx.kind = .group;
+                    currx.bvalue[currx.blen] = 1;
+                    currx.blen += 1;
+                    currx.nvalue = 1;
                 },
             }
 
