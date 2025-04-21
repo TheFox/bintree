@@ -65,22 +65,6 @@ pub const Node = struct {
         }
     }
 
-    pub fn addInput2(self: *Node, input_line: []u8, max_parse_level: usize) !void {
-        print("\x1b[0;31maddInput({*}, {d}, {d}) -> count: {d}\x1b[0m\n", .{ self, input_line.len, max_parse_level, self.count });
-
-        if (input_line.len == 0) {
-            print("-> input line is empty\n", .{});
-            return;
-        }
-        print("-> input_line: {any}\n", .{input_line});
-
-        if (self.parse_rules.items.len > 0) {
-            print("parse rules: {d}\n", .{self.parse_rules.items.len});
-        } else {
-            print("no parse rules\n", .{});
-        }
-    }
-
     pub fn addInput(self: *Node, input_line: []u8, max_parse_level: usize) !void {
         self.count += 1;
         print("\x1b[0;31maddInput({*}, {d}, {d}) -> count: {d}\x1b[0m\n", .{ self, input_line.len, max_parse_level, self.count });
@@ -111,10 +95,12 @@ pub const Node = struct {
             while (currx) |xpath| {
                 print("-> xpath: {any}\n", .{xpath.kind});
                 switch (xpath.kind) {
-                    .init => unreachable,
-                    .root => unreachable,
+                    .init, .root => unreachable,
                     .level => {
                         print("--> level\n", .{});
+                        if (xpath.next) |next| {
+                            currx = next;
+                        }
                         break;
                     },
                     .select => {
