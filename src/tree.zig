@@ -65,10 +65,25 @@ pub const Node = struct {
         }
     }
 
+    pub fn addInput2(self: *Node, input_line: []u8, max_parse_level: usize) !void {
+        print("\x1b[0;31maddInput({*}, {d}, {d}) -> count: {d}\x1b[0m\n", .{ self, input_line.len, max_parse_level, self.count });
+
+        if (input_line.len == 0) {
+            print("-> input line is empty\n", .{});
+            return;
+        }
+        print("-> input_line: {any}\n", .{input_line});
+
+        if (self.parse_rules.items.len > 0) {
+            print("parse rules: {d}\n", .{self.parse_rules.items.len});
+        } else {
+            print("no parse rules\n", .{});
+        }
+    }
+
     pub fn addInput(self: *Node, input_line: []u8, max_parse_level: usize) !void {
         self.count += 1;
         print("\x1b[0;31maddInput({*}, {d}, {d}) -> count: {d}\x1b[0m\n", .{ self, input_line.len, max_parse_level, self.count });
-        // defer print("\n", .{});
 
         if (input_line.len == 0) {
             print("-> input line is empty\n", .{});
@@ -81,9 +96,9 @@ pub const Node = struct {
 
         var selected = ArrayList(u8).init(self.allocator);
         defer selected.deinit();
-        var rest: []u8 = undefined;
+        var rest: ?[]u8 = null;
 
-        print("self.parse_rules.items len: {d}\n", .{self.parse_rules.items.len});
+        print("parse_rules len: {d}\n", .{self.parse_rules.items.len});
 
         for (self.parse_rules.items) |rule| {
             print("-> parse rule: nv={X} kind={any}\n", .{
@@ -91,94 +106,48 @@ pub const Node = struct {
                 rule.kind,
             });
 
-            var break_rules = false;
-            var currx: *Xpath = rule;
-            var next_xpath = false;
-            var xpath_left = true;
-            var input_pos: usize = 0;
-            var select_left: usize = 0;
-            var ignore_left: usize = 0;
-            for (input_line) |input_c| { // TODO rewrite this loop using postion counter and subloops(?)
-                print("input char: '{X}'\n", .{input_c});
-                switch (currx.kind) {
-                    .init, .root => {
-                        unreachable;
-                    },
-                    .level => {
-                        unreachable;
-                    },
+            var ipos: usize = 0;
+            var currx: ?*Xpath = rule;
+            while (currx) |xpath| {
+                print("-> xpath: {any}\n", .{xpath.kind});
+                switch (xpath.kind) {
+                    .init => unreachable,
+                    .root => unreachable,
+                    .level => unreachable,
                     .select => {
-                        if (currx.nvalue == input_c) {
+                        const input_c = input_line[ipos];
+                        if (xpath.nvalue == input_c) {
+                            print("--> select eq\n", .{});
                             try selected.append(input_c);
-                            break_rules = true;
-                            next_xpath = true;
-                        } else {
-                            print("-> break input_line [select]\n", .{});
-                            break;
+                            ipos += 1;
                         }
                     },
                     .ignore => {
-                        print("-> ignore: {d}\n", .{ignore_left});
-                        if (ignore_left > 0) {
-                            ignore_left -= 1;
-                            if (ignore_left == 0) {
-                                break_rules = true;
-                                next_xpath = true;
-                            }
-                        } else {
-                            if (currx.nvalue) |nvalue| {
-                                ignore_left = @intCast(nvalue);
-                                ignore_left -= 1;
-                            }
+                        if (xpath.nvalue) |n| {
+                            ipos += n;
                         }
                     },
                     .delete => {
-                        if (currx.nvalue == input_c) {
-                            break_rules = true;
-                            next_xpath = true;
+                        const input_c = input_line[ipos];
+                        if (xpath.nvalue == input_c) {
+                            print("--> delete eq\n", .{});
+                            ipos += 1;
                         }
                     },
                     .group => {
-                        if (select_left > 0) {
-                            try selected.append(input_c);
-                            select_left -= 1;
-                            if (select_left == 0) {
-                                break_rules = true;
-                                next_xpath = true;
-                            }
-                        } else {
-                            if (currx.nvalue) |nvalue| {
-                                select_left = @intCast(nvalue);
-                                select_left -= 1;
-                                try selected.append(input_c);
+                        if (xpath.nvalue) |cn| {
+                            for (0..cn) |x| {
+                                print("--> group x {d}\n", .{x});
+                                try selected.append(input_line[ipos]);
+                                ipos += 1;
                             }
                         }
                     },
                 }
-
-                input_pos += 1;
-
-                if (next_xpath) {
-                    if (currx.next) |next| {
-                        currx = next;
-                    } else {
-                        xpath_left = false;
-                        print("-> break input_line [next_xpath, no currx.next]\n", .{});
-                        break;
-                    }
-                }
-            } // for input_line
-
-            if (xpath_left) {
-                try rest_parse_rules.append(currx);
+                currx = xpath.next;
             }
-
-            rest = input_line[input_pos..];
-
-            if (break_rules) {
-                print("-> break rules\n", .{});
-                break;
-            }
+            print("-> end ipos: {d}\n", .{ipos});
+            rest = input_line[ipos..];
         } // for self.parse_rules.items
 
         if (self.node_level >= max_parse_level) {
@@ -186,7 +155,7 @@ pub const Node = struct {
         }
 
         print("\x1b[33m-> parse_rules: {d}\x1b[0m\n", .{self.parse_rules.items.len});
-        print("\x1b[33m-> selected.items: {d}\x1b[0m\n", .{selected.items.len});
+        print("\x1b[33m-> selected: {d} {X}\x1b[0m\n", .{ selected.items.len, selected.items });
         var key: []u8 = undefined;
         if (self.parse_rules.items.len > 0) {
             if (selected.items.len > 0) {
@@ -202,8 +171,8 @@ pub const Node = struct {
             rest = input_line[1..];
         }
 
-        print("-> key X: {X}\n", .{key});
-        print("-> rest X: {X}\n", .{rest});
+        print("-> key: {X}\n", .{key});
+        print("-> rest: {any}\n", .{rest});
 
         const key_str = try std.fmt.allocPrint(self.allocator, "{s}", .{key});
         print("-> key_str: {X}\n", .{key_str});
@@ -211,7 +180,7 @@ pub const Node = struct {
         print("-> get()\n", .{});
         if (self.children.get(key_str)) |node| {
             print("-> get() -> found\n", .{});
-            try node.addInput(rest, max_parse_level);
+            try node.addInput(rest.?, max_parse_level);
             return;
         }
         print("-> get() -> create node\n", .{});
@@ -219,7 +188,7 @@ pub const Node = struct {
         var child = Node.init(self.allocator, self, &rest_parse_rules);
         child.value = key_str;
         child.node_level = self.node_level + 1;
-        try child.addInput(rest, max_parse_level);
+        try child.addInput(rest.?, max_parse_level);
 
         try self.children.put(key_str, child);
 
