@@ -37,13 +37,13 @@ pub fn main() !void {
 
     var parse_rules = XpathList.init(allocator);
 
-    var arg_verbose_level: u8 = 0;
+    var arg_verbose: u8 = 0;
     var arg_delimiter: u8 = '\n';
     var arg_single_char_input_mode: CharInputMode = .unknown;
     var arg_max_parse_level: usize = 256;
     var arg_max_show_level: usize = 256;
     var arg_min_count_level: usize = 0;
-    if (arg_verbose_level >= 1) {
+    if (arg_verbose >= 1) {
         print("args: {d}\n", .{args.len});
     }
     if (args.len == 1) {
@@ -66,12 +66,12 @@ pub fn main() !void {
                     }
                 }
             }
-        } else if (eql(u8, arg, "-v")) {
-            arg_verbose_level = 1;
+        } else if (eql(u8, arg, "-v") or eql(u8, arg, "--verbose")) {
+            arg_verbose = 1;
         } else if (eql(u8, arg, "-vv")) {
-            arg_verbose_level = 2;
+            arg_verbose = 2;
         } else if (eql(u8, arg, "-vvv")) {
-            arg_verbose_level = 3;
+            arg_verbose = 3;
         } else if (eql(u8, arg, "-d")) {
             if (args_iter.next()) |next_arg| {
                 if (eql(u8, next_arg, "NL")) {
@@ -121,7 +121,7 @@ pub fn main() !void {
         } else if (eql(u8, arg, "-i")) {
             if (args_iter.next()) |next_arg| {
                 for (next_arg) |c| {
-                    if (arg_verbose_level >= 2)
+                    if (arg_verbose >= 2)
                         print("ignore character: 0x{X}\n", .{c});
                     try ignores.append(c);
                 }
@@ -129,7 +129,7 @@ pub fn main() !void {
         } else if (eql(u8, arg, "-ix")) {
             if (args_iter.next()) |next_arg| {
                 const c = try parseInt(u8, next_arg, 16);
-                if (arg_verbose_level >= 2)
+                if (arg_verbose >= 2)
                     print("ignore character from hex: 0x{X}\n", .{c});
                 try ignores.append(c);
             }
@@ -143,7 +143,7 @@ pub fn main() !void {
         }
     }
 
-    if (arg_verbose_level >= 1) {
+    if (arg_verbose >= 1) {
         print("\n", .{});
         print("arg_delimiter: {d}\n", .{arg_delimiter});
         print("arg_single_char_input_mode: {any}\n", .{arg_single_char_input_mode});
@@ -152,7 +152,7 @@ pub fn main() !void {
         print("arg_min_count_level: {d}\n", .{arg_min_count_level});
         print("\n", .{});
     }
-    if (arg_verbose_level >= 2) {
+    if (arg_verbose >= 2) {
         print("parse_rules.items: {d}\n", .{parse_rules.items.len});
         for (parse_rules.items) |xpath_i| {
             print("parse_rule: {any}\n", .{xpath_i.kind});
@@ -181,11 +181,11 @@ pub fn main() !void {
 
         var line_buffer: [4096]u8 = undefined;
         while (try in_stream.readUntilDelimiterOrEof(&line_buffer, arg_delimiter)) |line| {
-            if (arg_verbose_level >= 3) {
+            if (arg_verbose >= 3) {
                 print("line: '{s}'\n", .{line});
             }
             if (line[0] == '#') {
-                if (arg_verbose_level >= 3) {
+                if (arg_verbose >= 3) {
                     print("skip line\n", .{});
                 }
                 continue;
@@ -239,7 +239,7 @@ pub fn main() !void {
         }
     }
 
-    if (arg_verbose_level >= 1) {
+    if (arg_verbose >= 1) {
         print("finished parsing files\n", .{});
     }
 
@@ -273,11 +273,11 @@ pub fn main() !void {
 
 fn print_help() void {
     const help =
-        \\Usage: btreeprint [-h] [-m <string>] [-f <path> [-f <path> ...]] ...more options
+        \\Usage: btreeprint [-h|--help] [-v|-vv|-vvv] [-m <string>] [-f <path> [-f <path> ...]] ...more options
         \\
         \\Options:
-        \\-h               Print this help.
-        \\-v               Verbose output.
+        \\-h, --help       Print this help.
+        \\-v, --verbose    Verbose output.
         \\-vv              More verbose output.
         \\-vvv             Even more verbose output.
         \\-f <path>        One file. You can use -f multiple times.
