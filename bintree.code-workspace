@@ -4,5 +4,26 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"tasks": {
+		"version": "2.0.0",
+		"tasks": [
+			{
+				"label": "Build",
+				"type": "shell",
+				"command": "zig build --verbose --summary all --release=small",
+				"group": {
+					"kind": "build",
+					"isDefault": true
+				}
+			}, {
+				"label": "Test",
+				"type": "shell",
+				"command": "zig build test --verbose --summary all",
+				"group": {
+					"kind": "build",
+					"isDefault": true
+				}
+			}
+		]
+	}
 }
