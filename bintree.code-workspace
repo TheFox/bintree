@@ -21,7 +21,7 @@
 				"command": "zig build test --verbose --summary all",
 				"group": {
 					"kind": "build",
-					"isDefault": true
+					"isDefault": false
 				}
 			}
 		]
