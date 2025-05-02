@@ -43,9 +43,7 @@ pub fn main() !void {
     var arg_max_parse_level: usize = 256;
     var arg_max_show_level: usize = 256;
     var arg_min_count_level: usize = 0;
-    if (arg_verbose >= 1) {
-        print("args: {d}\n", .{args.len});
-    }
+    print("args: {d}\n", .{args.len});
     if (args.len == 1) {
         print_help();
         return;
@@ -273,7 +271,7 @@ pub fn main() !void {
 
 fn print_help() void {
     const help =
-        \\Usage: btreeprint [-h|--help] [-v|-vv|-vvv] [-m <string>] [-f <path> [-f <path> ...]] ...more options
+        \\Usage: bintree [-h|--help] [-v|-vv|-vvv|--verbose] [-m <string>] [-f <path> [-f <path> ...]] ...more options
         \\
         \\Options:
         \\-h, --help       Print this help.

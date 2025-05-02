@@ -4,20 +4,30 @@ const allocPrint = std.fmt.allocPrint;
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+    const optimize = b.standardOptimizeOption(.{
+        .preferred_optimize_mode = .ReleaseSmall,
+    });
+    const is_ci = b.option(bool, "ci", "Enable CI mode") orelse false;
 
     print("target arch: {s}\n", .{@tagName(target.result.cpu.arch)});
+    print("target cpu: {s}\n", .{target.result.cpu.model.name});
     print("target os: {s}\n", .{@tagName(target.result.os.tag)});
     print("optimize: {s}\n", .{@tagName(optimize)});
+    print("CI: {any}\n", .{is_ci});
 
-    const target_name = allocPrint(
-        b.allocator,
-        "bintree-{s}-{s}",
-        .{
-            @tagName(target.result.cpu.arch),
-            @tagName(target.result.os.tag),
-        },
-    ) catch @panic("failed to allocate target name");
+    var target_name: []u8 = undefined;
+    if (is_ci) {
+        target_name = allocPrint(b.allocator, "bintree", .{}) catch @panic("failed to allocate target name");
+    } else {
+        target_name = allocPrint(
+            b.allocator,
+            "bintree-{s}-{s}",
+            .{
+                @tagName(target.result.cpu.arch),
+                @tagName(target.result.os.tag),
+            },
+        ) catch @panic("failed to allocate target name");
+    }
     print("target name: {s}\n", .{target_name});
 
     const exe_mod = b.createModule(.{
@@ -30,6 +40,11 @@ pub fn build(b: *std.Build) void {
         .name = target_name,
         .root_module = exe_mod,
     });
+
+    const options = b.addOptions();
+    options.addOption([]const u8, "ci", is_ci);
+    exe.root_module.addOptions("config", options);
+
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
