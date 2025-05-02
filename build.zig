@@ -42,7 +42,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const options = b.addOptions();
-    options.addOption([]const u8, "ci", is_ci);
+    options.addOption(bool, "ci", is_ci);
     exe.root_module.addOptions("config", options);
 
     b.installArtifact(exe);
