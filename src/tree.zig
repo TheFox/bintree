@@ -75,11 +75,11 @@ pub const Node = struct {
         }
         print("-> input_line: {any}\n", .{input_line});
 
-        var rest_parse_rules = XpathList.init(self.allocator);
-        defer rest_parse_rules.deinit();
+        var rest_parse_rules = try XpathList.initCapacity(self.allocator, 1024);
+        defer rest_parse_rules.deinit(self.allocator);
 
-        var selected = ArrayList(u8).init(self.allocator);
-        defer selected.deinit();
+        var selected = try ArrayList(u8).initCapacity(self.allocator, 1024);
+        defer selected.deinit(self.allocator);
         var rest: ?[]u8 = null;
 
         print("parse_rules len: {d}\n", .{self.parse_rules.items.len});
@@ -107,7 +107,7 @@ pub const Node = struct {
                         const input_c = input_line[ipos];
                         if (xpath.nvalue == input_c) {
                             print("--> select eq\n", .{});
-                            try selected.append(input_c);
+                            try selected.append(self.allocator, input_c);
                             ipos += 1;
                         }
                     },
@@ -127,7 +127,7 @@ pub const Node = struct {
                         if (xpath.nvalue) |cn| {
                             for (0..cn) |x| {
                                 print("--> group x {d}\n", .{x});
-                                try selected.append(input_line[ipos]);
+                                try selected.append(self.allocator, input_line[ipos]);
                                 ipos += 1;
                             }
                         }
@@ -139,7 +139,7 @@ pub const Node = struct {
             print("-> end ipos: {d}\n", .{ipos});
             rest = input_line[ipos..];
             if (currx) |curry| {
-                try rest_parse_rules.append(curry);
+                try rest_parse_rules.append(self.allocator, curry);
             }
         } // for self.parse_rules.items
 
@@ -233,24 +233,24 @@ pub const Node = struct {
 
         // Sort by key.
         var iter = self.children.iterator();
-        var keys = ArrayList([]const u8).init(self.allocator);
-        defer keys.deinit();
+        var keys = try ArrayList([]const u8).initCapacity(self.allocator, 1024);
+        defer keys.deinit(self.allocator);
         while (iter.next()) |entry| {
-            try keys.append(entry.key_ptr.*);
+            try keys.append(self.allocator, entry.key_ptr.*);
         }
         sort([]const u8, keys.items, {}, comptime compareStringsAsc);
         // print("keys: {d}\n", .{keys.items.len});
 
         // Filter
-        var filered = ArrayList(*Node).init(self.allocator);
-        defer filered.deinit();
+        var filered = try ArrayList(*Node).initCapacity(self.allocator, 1024);
+        defer filered.deinit(self.allocator);
         for (keys.items) |key| {
             // print("-> key xpath: {X}\n", .{key});
             if (self.children.get(key)) |child| {
                 // print("-> key child: {*}\n", .{child});
 
                 if (child.count >= arg_min_count_level) {
-                    try filered.append(child);
+                    try filered.append(self.allocator, child);
                 }
             }
         }
@@ -266,10 +266,10 @@ pub const Node = struct {
             const child_is_last = loop_n == child_len;
 
             var new_path = try ArrayList([]const u8).initCapacity(self.allocator, prefix_path.items.len);
-            defer new_path.deinit();
-            try new_path.appendSlice(prefix_path.items);
+            defer new_path.deinit(self.allocator);
+            try new_path.appendSlice(self.allocator, prefix_path.items);
 
-            try new_path.append(if (child_is_last) " " else "│");
+            try new_path.append(self.allocator, if (child_is_last) " " else "│");
 
             try child.show(cur_level + 1, max_show_level, arg_min_count_level, child_is_last, &new_path);
         }

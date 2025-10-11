@@ -29,7 +29,7 @@ const Token = struct {
 
 fn scanner(allocator: Allocator, query: []const u8) !ArrayList(Token) {
     print("scanner({s})\n", .{query});
-    var tokenz = ArrayList(Token).init(allocator);
+    var tokenz = try ArrayList(Token).initCapacity(allocator, 1024);
 
     var qpos: usize = 0;
     while (qpos < query.len) {
@@ -59,7 +59,7 @@ fn scanner(allocator: Allocator, query: []const u8) !ArrayList(Token) {
         }
         qpos += 1;
 
-        try tokenz.append(token);
+        try tokenz.append(allocator, token);
     }
     return tokenz;
 }
@@ -82,8 +82,8 @@ pub const Xpath = struct {
 
     pub fn init(allocator: Allocator, query: []const u8) !*Xpath {
         print("Xpath scanner\n", .{});
-        const tokenz = try scanner(allocator, query);
-        defer tokenz.deinit();
+        var tokenz = try scanner(allocator, query);
+        defer tokenz.deinit(allocator);
 
         const root = allocator.create(Xpath) catch unreachable;
         root.* = Xpath{

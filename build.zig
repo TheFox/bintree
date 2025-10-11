@@ -3,6 +3,12 @@ const print = std.debug.print;
 const allocPrint = std.fmt.allocPrint;
 
 pub fn build(b: *std.Build) void {
+    const version: std.SemanticVersion = .{
+        .major = 0,
+        .minor = 1,
+        .patch = 0,
+        .pre = "dev.1",
+    };
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{
         .preferred_optimize_mode = .ReleaseSmall,
@@ -33,17 +39,15 @@ pub fn build(b: *std.Build) void {
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
+        .strip = optimize != .Debug,
         .optimize = optimize,
     });
 
     const exe = b.addExecutable(.{
         .name = target_name,
+        .version = version,
         .root_module = exe_mod,
     });
-
-    const options = b.addOptions();
-    options.addOption(bool, "ci", is_ci);
-    exe.root_module.addOptions("config", options);
 
     b.installArtifact(exe);
 

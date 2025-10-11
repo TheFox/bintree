@@ -1,7 +1,9 @@
+const run_mode = @import("builtin").mode;
 const std = @import("std");
 const mem = std.mem;
 const contains = mem.containsAtLeastScalar;
 const ArrayList = std.ArrayList;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const print = std.debug.print;
 const eql = std.mem.eql;
 const parseInt = std.fmt.parseInt;
@@ -13,12 +15,11 @@ const xpath = @import("xpath.zig");
 const XpathList = xpath.XpathList;
 const Xpath = xpath.Xpath;
 const CharInputMode = enum(u2) { unknown, binary, hex };
-const run_mode = @import("builtin").mode;
 
 pub fn main() !void {
     print("run_mode: {any}\n", .{run_mode});
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -29,13 +30,13 @@ pub fn main() !void {
     defer args_iter.deinit();
     _ = args_iter.next();
 
-    var files = ArrayList([]const u8).init(allocator);
-    defer files.deinit();
+    var files = try ArrayList([]const u8).initCapacity(allocator, 1024);
+    defer files.deinit(allocator);
 
-    var ignores = ArrayList(u8).init(allocator);
-    defer ignores.deinit();
+    var ignores = try ArrayList(u8).initCapacity(allocator, 1024);
+    defer ignores.deinit(allocator);
 
-    var parse_rules = XpathList.init(allocator);
+    var parse_rules = try XpathList.initCapacity(allocator, 1024);
 
     var arg_verbose: u8 = 0;
     var arg_delimiter: u8 = '\n';
@@ -54,7 +55,7 @@ pub fn main() !void {
             return;
         } else if (eql(u8, arg, "-f")) {
             if (args_iter.next()) |file| {
-                try files.append(file);
+                try files.append(allocator, file);
 
                 if (arg_single_char_input_mode == .unknown) {
                     if (eql(u8, file[file.len - 4 ..], ".bin")) {
@@ -121,7 +122,7 @@ pub fn main() !void {
                 for (next_arg) |c| {
                     if (arg_verbose >= 2)
                         print("ignore character: 0x{X}\n", .{c});
-                    try ignores.append(c);
+                    try ignores.append(allocator, c);
                 }
             }
         } else if (eql(u8, arg, "-ix")) {
@@ -129,11 +130,12 @@ pub fn main() !void {
                 const c = try parseInt(u8, next_arg, 16);
                 if (arg_verbose >= 2)
                     print("ignore character from hex: 0x{X}\n", .{c});
-                try ignores.append(c);
+                try ignores.append(allocator, c);
             }
         } else if (eql(u8, arg, "-r")) {
             if (args_iter.next()) |next_arg| {
-                try parse_rules.append(try Xpath.init(allocator, next_arg));
+                const rule = try Xpath.init(allocator, next_arg);
+                try parse_rules.append(allocator, rule);
             }
         } else {
             print("Unknown argument: {s}\n", .{arg});
@@ -164,7 +166,7 @@ pub fn main() !void {
 
     var root = RootNode(allocator, &parse_rules);
 
-    var lines = ArrayList(*ArrayList(u8)).init(allocator);
+    var lines = try ArrayList(*ArrayList(u8)).initCapacity(allocator, 1024);
 
     for (files.items) |file_path| {
         print("input file: {s}\n", .{file_path});
@@ -174,13 +176,18 @@ pub fn main() !void {
         });
         defer file.close();
 
-        var buf_reader = std.io.bufferedReader(file.reader());
-        var in_stream = buf_reader.reader();
+        const buffer_r = try allocator.alloc(u8, 4096);
+        defer allocator.free(buffer_r);
+        var reader = file.reader(buffer_r);
+        var in_stream = &reader.interface;
 
-        var line_buffer: [4096]u8 = undefined;
-        while (try in_stream.readUntilDelimiterOrEof(&line_buffer, arg_delimiter)) |line| {
+        while (true) {
+            const line = try in_stream.takeDelimiterExclusive(arg_delimiter); // TODO test file read line by line
             if (arg_verbose >= 3) {
                 print("line: '{s}'\n", .{line});
+            }
+            if (line.len == 0) {
+                break;
             }
             if (line[0] == '#') {
                 if (arg_verbose >= 3) {
@@ -190,8 +197,8 @@ pub fn main() !void {
             }
 
             const input_line = allocator.create(ArrayList(u8)) catch unreachable;
-            input_line.* = ArrayList(u8).init(allocator);
-            try lines.append(input_line);
+            input_line.* = try ArrayList(u8).initCapacity(allocator, 1024);
+            try lines.append(allocator, input_line);
 
             // print("input_line: {any}\n", .{input_line.items});
 
@@ -216,7 +223,7 @@ pub fn main() !void {
                                 if (contains(u8, ignores.items, 1, x))
                                     continue;
 
-                                try input_line.append(x);
+                                try input_line.append(allocator, x);
                             },
                         }
                     }
@@ -226,7 +233,7 @@ pub fn main() !void {
                         if (contains(u8, ignores.items, 1, c))
                             continue;
 
-                        try input_line.append(c);
+                        try input_line.append(allocator, c);
                     }
                 },
             }
@@ -243,7 +250,7 @@ pub fn main() !void {
 
     print("root.children: {d}\n", .{root.children.count()});
 
-    const prefix_path = ArrayList([]const u8).init(allocator);
+    var prefix_path = try ArrayList([]const u8).initCapacity(allocator, 1024);
 
     try root.show(0, arg_max_show_level, arg_min_count_level, false, &prefix_path);
 
@@ -251,19 +258,19 @@ pub fn main() !void {
         // No need to free everything in production mode at the end
         // because the process is going to exit anyway.
 
-        prefix_path.deinit();
+        prefix_path.deinit(allocator);
 
         root.deinit();
 
         for (lines.items) |line| {
-            line.deinit();
+            line.deinit(allocator);
             allocator.destroy(line);
         }
-        lines.deinit();
+        lines.deinit(allocator);
 
         for (parse_rules.items) |item|
             item.deinit();
-        parse_rules.deinit();
+        parse_rules.deinit(allocator);
     }
 
     print("exit\n", .{});
