@@ -1,5 +1,13 @@
 # bintree
 
+A program written in Zig that represents binary data as a tree structure. It helps to explore and understand raw binary formats by displaying the data in a hierarchical, readable form.
+
+## Project Outlines
+
+The project outlines as described in my blog post about [Open Source Software Collaboration](https://blog.fox21.at/2019/02/21/open-source-software-collaboration.html).
+
+- The one and only purpose of this software is to represents binary data in the terminal, command-line.
+
 ## Dev
 
 ```bash
