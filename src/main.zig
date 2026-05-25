@@ -179,13 +179,13 @@ pub fn main(init: std.process.Init) !void {
         });
         defer file.close(init.io);
 
-        const buffer_r = try allocator.alloc(u8, 4096);
-        defer allocator.free(buffer_r);
-        var reader = file.reader(init.io, buffer_r);
-        var in_stream = &reader.interface;
+        const reader_buf = try allocator.alloc(u8, 4096);
+        defer allocator.free(reader_buf);
+        var file_reader = file.reader(init.io, reader_buf);
+        var io_reader = &file_reader.interface;
 
         while (true) {
-            const line = try in_stream.takeDelimiterExclusive(arg_delimiter); // TODO test file read line by line
+            const line = try io_reader.takeDelimiterExclusive(arg_delimiter); // TODO test file read line by line
             if (arg_verbose >= 3) {
                 print("line: '{s}'\n", .{line});
             }
