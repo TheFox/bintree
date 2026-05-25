@@ -245,7 +245,8 @@ pub const Xpath = struct {
 pub const XpathList = ArrayList(*Xpath);
 
 test "scanner" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){}; // TODO remove after test
+    var gpa = std.testing.allocator;
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
@@ -255,7 +256,8 @@ test "scanner" {
 
 // zig test src/xpath.zig --test-filter xpath_dev
 test "xpath_dev" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){}; // TODO remove after test
+    var gpa = std.testing.allocator;
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
@@ -264,7 +266,8 @@ test "xpath_dev" {
 }
 
 test "null_xpath" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){}; // TODO remove after test
+    var gpa = std.testing.allocator;
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
@@ -276,7 +279,8 @@ test "null_xpath" {
 }
 
 test "simple_xpath" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){}; // TODO remove after test
+    var gpa = std.testing.allocator;
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 

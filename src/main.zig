@@ -1,9 +1,10 @@
 const run_mode = @import("builtin").mode;
 const std = @import("std");
-const mem = std.mem;
-const contains = mem.containsAtLeastScalar;
+const File = std.Io.File;
+const Writer = std.Io.Writer;
 const ArrayList = std.ArrayList;
-const ArenaAllocator = std.heap.ArenaAllocator;
+const cwd = std.Io.Dir.cwd;
+const contains = std.mem.containsAtLeastScalar;
 const print = std.debug.print;
 const eql = std.mem.eql;
 const parseInt = std.fmt.parseInt;
@@ -16,17 +17,19 @@ const XpathList = xpath.XpathList;
 const Xpath = xpath.Xpath;
 const CharInputMode = enum(u2) { unknown, binary, hex };
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     print("run_mode: {any}\n", .{run_mode});
 
-    var arena = ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+    const minimal = init.minimal;
+    const allocator = init.arena.allocator();
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    const stdout_buffer = try allocator.alloc(u8, 1024);
+    defer allocator.free(stdout_buffer);
+    var stdout_writer = File.stdout().writer(init.io, stdout_buffer);
+    const stdout = &stdout_writer.interface;
 
-    var args_iter = try std.process.argsWithAllocator(allocator);
+    const args = try minimal.args.toSlice(allocator);
+    var args_iter = minimal.args.iterate();
     defer args_iter.deinit();
     _ = args_iter.next();
 
@@ -46,12 +49,12 @@ pub fn main() !void {
     var arg_min_count_level: usize = 0;
     print("args: {d}\n", .{args.len});
     if (args.len == 1) {
-        print_help();
+        try printHelp(stdout);
         return;
     }
     while (args_iter.next()) |arg| {
         if (eql(u8, arg, "-h") or eql(u8, arg, "--help")) {
-            print_help();
+            try printHelp(stdout);
             return;
         } else if (eql(u8, arg, "-f")) {
             if (args_iter.next()) |file| {
@@ -171,14 +174,14 @@ pub fn main() !void {
     for (files.items) |file_path| {
         print("input file: {s}\n", .{file_path});
 
-        var file = try std.fs.cwd().openFile(file_path, .{
+        var file = try cwd().openFile(init.io, file_path, .{
             .mode = .read_only,
         });
-        defer file.close();
+        defer file.close(init.io);
 
         const buffer_r = try allocator.alloc(u8, 4096);
         defer allocator.free(buffer_r);
-        var reader = file.reader(buffer_r);
+        var reader = file.reader(init.io, buffer_r);
         var in_stream = &reader.interface;
 
         while (true) {
@@ -276,7 +279,7 @@ pub fn main() !void {
     print("exit\n", .{});
 }
 
-fn print_help() void {
+fn printHelp(stdout: *Writer) !void {
     const help =
         \\Usage: bintree [-h|--help] [-v|-vv|-vvv|--verbose] [-m <string>] [-f <path> [-f <path> ...]] ...more options
         \\
@@ -297,5 +300,6 @@ fn print_help() void {
         \\-ix <hex>        Character to ignore while parsing.
         \\-r <xpath>       Parse rules using Xpath.
     ;
-    print(help ++ "\n", .{});
+    try stdout.print(help ++ "\n", .{});
+    try stdout.flush();
 }

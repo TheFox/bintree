@@ -3,10 +3,9 @@ const fmt = std.fmt;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const AutoHashMap = std.AutoHashMap;
-const StringArrayHashMap = std.StringArrayHashMap(*Node);
+const StringArrayHashMap = std.array_hash_map.String(*Node);
 const sort = std.mem.sort;
 const print = std.debug.print;
-const fmtSliceHexUpper = std.fmt.fmtSliceHexUpper;
 const expect = std.testing.expect;
 const dupe = std.mem.Allocator.dupe;
 const xpath_import = @import("xpath.zig");
@@ -32,7 +31,8 @@ pub const Node = struct {
     max_node_level: usize = 0,
 
     pub fn init(allocator: Allocator, parent: ?*Node, parse_rules: *XpathList) *Node {
-        const children = StringArrayHashMap.init(allocator);
+        // const children = try StringArrayHashMap.init(allocator);
+        const children: StringArrayHashMap = .empty;
 
         const node = allocator.create(Node) catch unreachable;
         node.* = Node{
@@ -50,7 +50,7 @@ pub const Node = struct {
             const node = entry.value_ptr.*;
             node.deinit();
         }
-        self.children.deinit();
+        self.children.deinit(self.allocator);
         self.allocator.destroy(self);
     }
 
@@ -184,7 +184,7 @@ pub const Node = struct {
         child.node_level = self.node_level + 1;
         try child.addInput(rest.?, max_parse_level);
 
-        try self.children.put(key_str, child);
+        try self.children.put(self.allocator, key_str, child);
 
         self.reportMaxNodeLevel(self.node_level);
     }
@@ -277,7 +277,8 @@ pub const Node = struct {
 };
 
 test "simple_node" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){}; // TODO remove after test
+    var gpa = std.testing.allocator;
     const allocator = gpa.allocator();
     var rules: XpathList = XpathList.init(allocator);
     const node = RootNode(allocator, &rules);
@@ -285,7 +286,8 @@ test "simple_node" {
 }
 
 test "simple_string" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){}; // TODO remove after test
+    var gpa = std.testing.allocator;
     const allocator = gpa.allocator();
     var rules: XpathList = XpathList.init(allocator);
 
