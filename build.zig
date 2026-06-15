@@ -1,8 +1,8 @@
 const std = @import("std");
 const print = std.debug.print;
-const allocPrint = std.fmt.allocPrint;
+const aprint = std.fmt.allocPrint;
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     const version: std.SemanticVersion = .{
         .major = 0,
         .minor = 1,
@@ -15,26 +15,17 @@ pub fn build(b: *std.Build) void {
     });
     const is_ci = b.option(bool, "ci", "Enable CI mode") orelse false;
 
+    const target_name = try if (is_ci)
+        aprint(b.allocator, "bintree", .{})
+    else
+        aprint(b.allocator, "bintree-{s}-{s}", .{ @tagName(target.result.cpu.arch), @tagName(target.result.os.tag) });
+
     print("target arch: {s}\n", .{@tagName(target.result.cpu.arch)});
     print("target cpu: {s}\n", .{target.result.cpu.model.name});
     print("target os: {s}\n", .{@tagName(target.result.os.tag)});
+    print("target name: {s}\n", .{target_name});
     print("optimize: {s}\n", .{@tagName(optimize)});
     print("CI: {any}\n", .{is_ci});
-
-    var target_name: []u8 = undefined;
-    if (is_ci) {
-        target_name = allocPrint(b.allocator, "bintree", .{}) catch @panic("failed to allocate target name");
-    } else {
-        target_name = allocPrint(
-            b.allocator,
-            "bintree-{s}-{s}",
-            .{
-                @tagName(target.result.cpu.arch),
-                @tagName(target.result.os.tag),
-            },
-        ) catch @panic("failed to allocate target name");
-    }
-    print("target name: {s}\n", .{target_name});
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),

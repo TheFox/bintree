@@ -34,7 +34,7 @@ pub const Node = struct {
         // const children = try StringArrayHashMap.init(allocator);
         const children: StringArrayHashMap = .empty;
 
-        const node = allocator.create(Node) catch unreachable;
+        const node = try allocator.create(Node);
         node.* = Node{
             .allocator = allocator,
             .parse_rules = parse_rules,
@@ -291,8 +291,8 @@ test "simple_string" {
     const allocator = gpa.allocator();
     var rules: XpathList = XpathList.init(allocator);
 
-    const buffer1 = dupe(allocator, u8, "\x01\x02\x03") catch unreachable;
-    const buffer2 = dupe(allocator, u8, "\x01\x02\x04") catch unreachable;
+    const buffer1 = try dupe(allocator, u8, "\x01\x02\x03");
+    const buffer2 = try dupe(allocator, u8, "\x01\x02\x04");
 
     const node = RootNode(allocator, &rules);
     defer node.deinit();

@@ -85,7 +85,7 @@ pub const Xpath = struct {
         var tokenz = try scanner(allocator, query);
         defer tokenz.deinit(allocator);
 
-        const root = allocator.create(Xpath) catch unreachable;
+        const root = try allocator.create(Xpath);
         root.* = Xpath{
             .allocator = allocator,
             .kind = .root,
@@ -206,7 +206,7 @@ pub const Xpath = struct {
             tpos += 1;
             const is_last = tpos == tokenz.items.len;
             if (next_xpath and !is_last) {
-                const next = allocator.create(Xpath) catch unreachable;
+                const next = try allocator.create(Xpath);
                 next.* = Xpath{
                     .allocator = allocator,
                 };

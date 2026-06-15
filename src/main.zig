@@ -184,13 +184,9 @@ pub fn main(init: std.process.Init) !void {
         var file_reader = file.reader(init.io, reader_buf);
         var io_reader = &file_reader.interface;
 
-        while (true) {
-            const line = try io_reader.takeDelimiterExclusive(arg_delimiter); // TODO test file read line by line
+        while (io_reader.takeSentinel('\n') catch null) |line| {
             if (arg_verbose >= 3) {
                 print("line: '{s}'\n", .{line});
-            }
-            if (line.len == 0) {
-                break;
             }
             if (line[0] == '#') {
                 if (arg_verbose >= 3) {
@@ -199,7 +195,7 @@ pub fn main(init: std.process.Init) !void {
                 continue;
             }
 
-            const input_line = allocator.create(ArrayList(u8)) catch unreachable;
+            const input_line = try allocator.create(ArrayList(u8));
             input_line.* = try ArrayList(u8).initCapacity(allocator, 1024);
             try lines.append(allocator, input_line);
 
