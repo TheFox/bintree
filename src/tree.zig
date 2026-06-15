@@ -16,8 +16,8 @@ fn compareStringsAsc(_: void, a: []const u8, b: []const u8) bool {
     return std.mem.order(u8, a, b) == .lt;
 }
 
-pub fn RootNode(allocator: Allocator, parse_rules: *XpathList) *Node {
-    return Node.init(allocator, null, parse_rules);
+pub fn RootNode(allocator: Allocator, parse_rules: *XpathList) !*Node {
+    return try Node.init(allocator, null, parse_rules);
 }
 
 pub const Node = struct {
@@ -30,7 +30,7 @@ pub const Node = struct {
     node_level: usize = 0,
     max_node_level: usize = 0,
 
-    pub fn init(allocator: Allocator, parent: ?*Node, parse_rules: *XpathList) *Node {
+    pub fn init(allocator: Allocator, parent: ?*Node, parse_rules: *XpathList) !*Node {
         // const children = try StringArrayHashMap.init(allocator);
         const children: StringArrayHashMap = .empty;
 
@@ -179,7 +179,7 @@ pub const Node = struct {
         print("-> get() -> create node\n", .{});
         print("-> rest_parse_rules: {d}\n", .{rest_parse_rules.items.len});
 
-        var child = Node.init(self.allocator, self, &rest_parse_rules);
+        var child = try Node.init(self.allocator, self, &rest_parse_rules);
         child.value = key_str;
         child.node_level = self.node_level + 1;
         try child.addInput(rest.?, max_parse_level);

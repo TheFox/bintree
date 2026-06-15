@@ -167,7 +167,7 @@ pub fn main(init: std.process.Init) !void {
         return;
     }
 
-    var root = RootNode(allocator, &parse_rules);
+    var root = try RootNode(allocator, &parse_rules);
 
     var lines = try ArrayList(*ArrayList(u8)).initCapacity(allocator, 1024);
 
