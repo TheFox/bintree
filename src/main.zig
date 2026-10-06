@@ -253,7 +253,7 @@ pub fn main(init: std.process.Init) !void {
 
     try root.show(0, arg_max_show_level, arg_min_count_level, false, &prefix_path);
 
-    if (run_mode == .Debug) {
+    if (run_mode == .debug) {
         // No need to free everything in production mode at the end
         // because the process is going to exit anyway.
 
