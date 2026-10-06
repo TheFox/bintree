@@ -11,7 +11,7 @@ pub fn build(b: *std.Build) !void {
     };
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{
-        .preferred_optimize_mode = .ReleaseSmall,
+        .preferred_optimize_mode = .small,
     });
     const is_ci = b.option(bool, "ci", "Enable CI mode") orelse false;
 
