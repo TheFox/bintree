@@ -1,14 +1,10 @@
+const VERSION = "0.1.0-dev.3";
 const std = @import("std");
 const print = std.debug.print;
 const aprint = std.fmt.allocPrint;
 
 pub fn build(b: *std.Build) !void {
-    const version: std.SemanticVersion = .{
-        .major = 0,
-        .minor = 1,
-        .patch = 0,
-        .pre = "dev.3",
-    };
+    const version = try std.SemanticVersion.parse(VERSION);
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{
         .preferred_optimize_mode = .small,
@@ -20,6 +16,7 @@ pub fn build(b: *std.Build) !void {
     else
         aprint(b.allocator, "bintree-{s}-{s}", .{ @tagName(target.result.cpu.arch), @tagName(target.result.os.tag) });
 
+    print("version: {s}\n", .{VERSION});
     print("target arch: {s}\n", .{@tagName(target.result.cpu.arch)});
     print("target cpu: {s}\n", .{target.result.cpu.model.name});
     print("target os: {s}\n", .{@tagName(target.result.os.tag)});
@@ -27,12 +24,16 @@ pub fn build(b: *std.Build) !void {
     print("optimize: {s}\n", .{@tagName(optimize)});
     print("CI: {any}\n", .{is_ci});
 
+    const build_options = b.addOptions();
+    build_options.addOption([]const u8, "VERSION", VERSION);
+
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .strip = optimize != .debug,
         .optimize = optimize,
     });
+    exe_mod.addOptions("build_options", build_options);
 
     const exe = b.addExecutable(.{
         .name = target_name,
