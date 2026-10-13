@@ -141,7 +141,7 @@ pub fn main(init: std.process.Init) !void {
                 try parse_rules.append(gpa, rule);
             }
         } else {
-            print("Unknown argument: {s}\n", .{arg});
+            print("ERROR: unknown argument: {s}\n", .{arg});
             return;
         }
     }
