@@ -1,6 +1,6 @@
 .{
     .name = .bintree,
-    .version = "0.1.0-dev.3", // VERSION
+    .version = "0.1.0-dev.3",
     .fingerprint = 0x1ec694cc9510f999,
     .minimum_zig_version = "0.17.0",
     .dependencies = .{},

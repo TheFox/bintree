@@ -1,10 +1,10 @@
-const VERSION = "0.1.0-dev.3";
+const config = @import("build.zig.zon");
 const std = @import("std");
 const print = std.debug.print;
 const aprint = std.fmt.allocPrint;
 
 pub fn build(b: *std.Build) !void {
-    const version = try std.SemanticVersion.parse(VERSION);
+    const version = try std.SemanticVersion.parse(config.version);
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{
         .preferred_optimize_mode = .small,
@@ -16,16 +16,16 @@ pub fn build(b: *std.Build) !void {
     else
         aprint(b.allocator, "bintree-{s}-{s}", .{ @tagName(target.result.cpu.arch), @tagName(target.result.os.tag) });
 
-    print("version: {s}\n", .{VERSION});
+    print("version: {s}\n", .{config.version});
     print("target arch: {s}\n", .{@tagName(target.result.cpu.arch)});
     print("target cpu: {s}\n", .{target.result.cpu.model.name});
     print("target os: {s}\n", .{@tagName(target.result.os.tag)});
     print("target name: {s}\n", .{target_name});
     print("optimize: {s}\n", .{@tagName(optimize)});
-    print("CI: {any}\n", .{is_ci});
+    print("is_ci: {any}\n", .{is_ci});
 
     const build_options = b.addOptions();
-    build_options.addOption([]const u8, "VERSION", VERSION);
+    build_options.addOption([]const u8, "VERSION", config.version);
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
