@@ -27,9 +27,9 @@ const Token = struct {
     }
 };
 
-fn scanner(allocator: Allocator, query: []const u8) !ArrayList(Token) {
+fn scanner(gpa: Allocator, query: []const u8) !ArrayList(Token) {
     print("scanner({s})\n", .{query});
-    var tokenz = try ArrayList(Token).initCapacity(allocator, 1024);
+    var tokenz = try ArrayList(Token).initCapacity(gpa, 1024);
 
     var qpos: usize = 0;
     while (qpos < query.len) {
@@ -59,13 +59,13 @@ fn scanner(allocator: Allocator, query: []const u8) !ArrayList(Token) {
         }
         qpos += 1;
 
-        try tokenz.append(allocator, token);
+        try tokenz.append(gpa, token);
     }
     return tokenz;
 }
 
 pub const Xpath = struct {
-    allocator: Allocator,
+    gpa: Allocator,
     next: ?*Xpath = null,
     nvalue: ?u16 = null,
     bvalue: [5]u8 = undefined,
@@ -80,14 +80,14 @@ pub const Xpath = struct {
         group,
     } = undefined,
 
-    pub fn init(allocator: Allocator, query: []const u8) !*Xpath {
+    pub fn init(gpa: Allocator, query: []const u8) !*Xpath {
         print("Xpath scanner\n", .{});
-        var tokenz = try scanner(allocator, query);
-        defer tokenz.deinit(allocator);
+        var tokenz = try scanner(gpa, query);
+        defer tokenz.deinit(gpa);
 
-        const root = try allocator.create(Xpath);
+        const root = try gpa.create(Xpath);
         root.* = Xpath{
-            .allocator = allocator,
+            .gpa = gpa,
             .kind = .root,
         };
 
@@ -206,9 +206,9 @@ pub const Xpath = struct {
             tpos += 1;
             const is_last = tpos == tokenz.items.len;
             if (next_xpath and !is_last) {
-                const next = try allocator.create(Xpath);
+                const next = try gpa.create(Xpath);
                 next.* = Xpath{
-                    .allocator = allocator,
+                    .gpa = gpa,
                 };
                 currx.next = next;
                 currx = next;
@@ -225,7 +225,7 @@ pub const Xpath = struct {
         if (self.next) |sub| {
             sub.deinit();
         }
-        self.allocator.destroy(self);
+        self.gpa.destroy(self);
     }
 
     pub fn xprint(self: *Xpath, n: u8) void {
@@ -245,33 +245,22 @@ pub const Xpath = struct {
 pub const XpathList = ArrayList(*Xpath);
 
 test "scanner" {
-    // var gpa = std.heap.GeneralPurposeAllocator(.{}){}; // TODO remove after test
-    var gpa = std.testing.allocator;
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
-
-    const tokenz = try scanner(allocator, "/s30/g5/.");
+    const gpa = std.testing.allocator;
+    const tokenz = try scanner(gpa, "/s30/g5/.");
     defer tokenz.deinit();
 }
 
 // zig test src/xpath.zig --test-filter xpath_dev
 test "xpath_dev" {
-    // var gpa = std.heap.GeneralPurposeAllocator(.{}){}; // TODO remove after test
-    var gpa = std.testing.allocator;
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
-
-    const xpath = try Xpath.init(allocator, "/sFEi65535g42");
+    const gpa = std.testing.allocator;
+    const xpath = try Xpath.init(gpa, "/sFEi65535g42");
     defer xpath.deinit();
 }
 
 test "null_xpath" {
-    // var gpa = std.heap.GeneralPurposeAllocator(.{}){}; // TODO remove after test
-    var gpa = std.testing.allocator;
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+    const gpa = std.testing.allocator;
 
-    const xpath = try Xpath.init(allocator, "/");
+    const xpath = try Xpath.init(gpa, "/");
     defer xpath.deinit();
 
     try expect(xpath.next == null);
@@ -279,12 +268,9 @@ test "null_xpath" {
 }
 
 test "simple_xpath" {
-    // var gpa = std.heap.GeneralPurposeAllocator(.{}){}; // TODO remove after test
-    var gpa = std.testing.allocator;
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+    const gpa = std.testing.allocator;
 
-    const xpath = try Xpath.init(allocator, "/sAB");
+    const xpath = try Xpath.init(gpa, "/sAB");
     defer xpath.deinit();
 
     if (xpath.next) |xpath1| {

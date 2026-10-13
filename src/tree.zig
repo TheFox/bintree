@@ -16,12 +16,12 @@ fn compareStringsAsc(_: void, a: []const u8, b: []const u8) bool {
     return std.mem.order(u8, a, b) == .lt;
 }
 
-pub fn RootNode(allocator: Allocator, parse_rules: *XpathList) !*Node {
-    return try Node.init(allocator, null, parse_rules);
+pub fn RootNode(gpa: Allocator, parse_rules: *XpathList) !*Node {
+    return try Node.init(gpa, null, parse_rules);
 }
 
 pub const Node = struct {
-    allocator: Allocator,
+    gpa: Allocator,
     parse_rules: *XpathList,
     parent: ?*Node,
     children: StringArrayHashMap,
@@ -30,13 +30,13 @@ pub const Node = struct {
     node_level: usize = 0,
     max_node_level: usize = 0,
 
-    pub fn init(allocator: Allocator, parent: ?*Node, parse_rules: *XpathList) !*Node {
-        // const children = try StringArrayHashMap.init(allocator);
+    pub fn init(gpa: Allocator, parent: ?*Node, parse_rules: *XpathList) !*Node {
+        // const children = try StringArrayHashMap.init(gpa);
         const children: StringArrayHashMap = .empty;
 
-        const node = try allocator.create(Node);
+        const node = try gpa.create(Node);
         node.* = Node{
-            .allocator = allocator,
+            .gpa = gpa,
             .parse_rules = parse_rules,
             .parent = parent,
             .children = children,
@@ -50,8 +50,8 @@ pub const Node = struct {
             const node = entry.value_ptr.*;
             node.deinit();
         }
-        self.children.deinit(self.allocator);
-        self.allocator.destroy(self);
+        self.children.deinit(self.gpa);
+        self.gpa.destroy(self);
     }
 
     pub fn reportMaxNodeLevel(self: *Node, max_node_level: usize) void {
@@ -75,11 +75,11 @@ pub const Node = struct {
         }
         print("-> input_line: {any}\n", .{input_line});
 
-        var rest_parse_rules = try XpathList.initCapacity(self.allocator, 1024);
-        defer rest_parse_rules.deinit(self.allocator);
+        var rest_parse_rules = try XpathList.initCapacity(self.gpa, 1024);
+        defer rest_parse_rules.deinit(self.gpa);
 
-        var selected = try ArrayList(u8).initCapacity(self.allocator, 1024);
-        defer selected.deinit(self.allocator);
+        var selected = try ArrayList(u8).initCapacity(self.gpa, 1024);
+        defer selected.deinit(self.gpa);
         var rest: ?[]u8 = null;
 
         print("parse_rules len: {d}\n", .{self.parse_rules.items.len});
@@ -107,7 +107,7 @@ pub const Node = struct {
                         const input_c = input_line[ipos];
                         if (xpath.nvalue == input_c) {
                             print("--> select eq\n", .{});
-                            try selected.append(self.allocator, input_c);
+                            try selected.append(self.gpa, input_c);
                             ipos += 1;
                         }
                     },
@@ -127,7 +127,7 @@ pub const Node = struct {
                         if (xpath.nvalue) |cn| {
                             for (0..cn) |x| {
                                 print("--> group x {d}\n", .{x});
-                                try selected.append(self.allocator, input_line[ipos]);
+                                try selected.append(self.gpa, input_line[ipos]);
                                 ipos += 1;
                             }
                         }
@@ -139,7 +139,7 @@ pub const Node = struct {
             print("-> end ipos: {d}\n", .{ipos});
             rest = input_line[ipos..];
             if (currx) |curry| {
-                try rest_parse_rules.append(self.allocator, curry);
+                try rest_parse_rules.append(self.gpa, curry);
             }
         } // for self.parse_rules.items
 
@@ -167,7 +167,7 @@ pub const Node = struct {
         print("-> key: {X}\n", .{key});
         print("-> rest: {any}\n", .{rest});
 
-        const key_str = try std.fmt.allocPrint(self.allocator, "{s}", .{key});
+        const key_str = try std.fmt.allocPrint(self.gpa, "{s}", .{key});
         print("-> key_str: {X}\n", .{key_str});
 
         print("-> get()\n", .{});
@@ -179,12 +179,12 @@ pub const Node = struct {
         print("-> get() -> create node\n", .{});
         print("-> rest_parse_rules: {d}\n", .{rest_parse_rules.items.len});
 
-        var child = try Node.init(self.allocator, self, &rest_parse_rules);
+        var child = try Node.init(self.gpa, self, &rest_parse_rules);
         child.value = key_str;
         child.node_level = self.node_level + 1;
         try child.addInput(rest.?, max_parse_level);
 
-        try self.children.put(self.allocator, key_str, child);
+        try self.children.put(self.gpa, key_str, child);
 
         self.reportMaxNodeLevel(self.node_level);
     }
@@ -233,24 +233,24 @@ pub const Node = struct {
 
         // Sort by key.
         var iter = self.children.iterator();
-        var keys = try ArrayList([]const u8).initCapacity(self.allocator, 1024);
-        defer keys.deinit(self.allocator);
+        var keys = try ArrayList([]const u8).initCapacity(self.gpa, 1024);
+        defer keys.deinit(self.gpa);
         while (iter.next()) |entry| {
-            try keys.append(self.allocator, entry.key_ptr.*);
+            try keys.append(self.gpa, entry.key_ptr.*);
         }
         sort([]const u8, keys.items, {}, comptime compareStringsAsc);
         // print("keys: {d}\n", .{keys.items.len});
 
         // Filter
-        var filered = try ArrayList(*Node).initCapacity(self.allocator, 1024);
-        defer filered.deinit(self.allocator);
+        var filered = try ArrayList(*Node).initCapacity(self.gpa, 1024);
+        defer filered.deinit(self.gpa);
         for (keys.items) |key| {
             // print("-> key xpath: {X}\n", .{key});
             if (self.children.get(key)) |child| {
                 // print("-> key child: {*}\n", .{child});
 
                 if (child.count >= arg_min_count_level) {
-                    try filered.append(self.allocator, child);
+                    try filered.append(self.gpa, child);
                 }
             }
         }
@@ -265,11 +265,11 @@ pub const Node = struct {
 
             const child_is_last = loop_n == child_len;
 
-            var new_path = try ArrayList([]const u8).initCapacity(self.allocator, prefix_path.items.len);
-            defer new_path.deinit(self.allocator);
-            try new_path.appendSlice(self.allocator, prefix_path.items);
+            var new_path = try ArrayList([]const u8).initCapacity(self.gpa, prefix_path.items.len);
+            defer new_path.deinit(self.gpa);
+            try new_path.appendSlice(self.gpa, prefix_path.items);
 
-            try new_path.append(self.allocator, if (child_is_last) " " else "│");
+            try new_path.append(self.gpa, if (child_is_last) " " else "│");
 
             try child.show(cur_level + 1, max_show_level, arg_min_count_level, child_is_last, &new_path);
         }
@@ -278,23 +278,21 @@ pub const Node = struct {
 
 test "simple_node" {
     // var gpa = std.heap.GeneralPurposeAllocator(.{}){}; // TODO remove after test
-    var gpa = std.testing.allocator;
-    const allocator = gpa.allocator();
-    var rules: XpathList = XpathList.init(allocator);
-    const node = RootNode(allocator, &rules);
+    const gpa = std.testing.allocator;
+    var rules: XpathList = XpathList.init(gpa);
+    const node = RootNode(gpa, &rules);
     defer node.deinit();
 }
 
 test "simple_string" {
     // var gpa = std.heap.GeneralPurposeAllocator(.{}){}; // TODO remove after test
-    var gpa = std.testing.allocator;
-    const allocator = gpa.allocator();
-    var rules: XpathList = XpathList.init(allocator);
+    const gpa = std.testing.allocator;
+    var rules: XpathList = XpathList.init(gpa);
 
-    const buffer1 = try dupe(allocator, u8, "\x01\x02\x03");
-    const buffer2 = try dupe(allocator, u8, "\x01\x02\x04");
+    const buffer1 = try dupe(gpa, u8, "\x01\x02\x03");
+    const buffer2 = try dupe(gpa, u8, "\x01\x02\x04");
 
-    const node = RootNode(allocator, &rules);
+    const node = RootNode(gpa, &rules);
     defer node.deinit();
 
     try node.addInput(buffer1, 256);

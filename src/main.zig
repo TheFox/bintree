@@ -21,25 +21,25 @@ pub fn main(init: std.process.Init) !void {
     print("run_mode: {any}\n", .{run_mode});
 
     const minimal = init.minimal;
-    const allocator = init.arena.allocator();
+    const gpa = init.arena.allocator();
 
-    const stdout_buffer = try allocator.alloc(u8, 1024);
-    defer allocator.free(stdout_buffer);
+    const stdout_buffer = try gpa.alloc(u8, 1024);
+    defer gpa.free(stdout_buffer);
     var stdout_writer = File.stdout().writer(init.io, stdout_buffer);
     const stdout = &stdout_writer.interface;
 
-    const args = try minimal.args.toSlice(allocator);
+    const args = try minimal.args.toSlice(gpa);
     var args_iter = minimal.args.iterate();
     defer args_iter.deinit();
     _ = args_iter.next();
 
-    var files = try ArrayList([]const u8).initCapacity(allocator, 1024);
-    defer files.deinit(allocator);
+    var files = try ArrayList([]const u8).initCapacity(gpa, 1024);
+    defer files.deinit(gpa);
 
-    var ignores = try ArrayList(u8).initCapacity(allocator, 1024);
-    defer ignores.deinit(allocator);
+    var ignores = try ArrayList(u8).initCapacity(gpa, 1024);
+    defer ignores.deinit(gpa);
 
-    var parse_rules = try XpathList.initCapacity(allocator, 1024);
+    var parse_rules = try XpathList.initCapacity(gpa, 1024);
 
     var arg_verbose: u8 = 0;
     var arg_delimiter: u8 = '\n';
@@ -58,7 +58,7 @@ pub fn main(init: std.process.Init) !void {
             return;
         } else if (eql(u8, arg, "-f")) {
             if (args_iter.next()) |file| {
-                try files.append(allocator, file);
+                try files.append(gpa, file);
 
                 if (arg_single_char_input_mode == .unknown) {
                     if (eql(u8, file[file.len - 4 ..], ".bin")) {
@@ -125,7 +125,7 @@ pub fn main(init: std.process.Init) !void {
                 for (next_arg) |c| {
                     if (arg_verbose >= 2)
                         print("ignore character: 0x{X}\n", .{c});
-                    try ignores.append(allocator, c);
+                    try ignores.append(gpa, c);
                 }
             }
         } else if (eql(u8, arg, "-ix")) {
@@ -133,12 +133,12 @@ pub fn main(init: std.process.Init) !void {
                 const c = try parseInt(u8, next_arg, 16);
                 if (arg_verbose >= 2)
                     print("ignore character from hex: 0x{X}\n", .{c});
-                try ignores.append(allocator, c);
+                try ignores.append(gpa, c);
             }
         } else if (eql(u8, arg, "-r")) {
             if (args_iter.next()) |next_arg| {
-                const rule = try Xpath.init(allocator, next_arg);
-                try parse_rules.append(allocator, rule);
+                const rule = try Xpath.init(gpa, next_arg);
+                try parse_rules.append(gpa, rule);
             }
         } else {
             print("Unknown argument: {s}\n", .{arg});
@@ -167,9 +167,9 @@ pub fn main(init: std.process.Init) !void {
         return;
     }
 
-    var root = try RootNode(allocator, &parse_rules);
+    var root = try RootNode(gpa, &parse_rules);
 
-    var lines = try ArrayList(*ArrayList(u8)).initCapacity(allocator, 1024);
+    var lines = try ArrayList(*ArrayList(u8)).initCapacity(gpa, 1024);
 
     for (files.items) |file_path| {
         print("input file: {s}\n", .{file_path});
@@ -179,8 +179,8 @@ pub fn main(init: std.process.Init) !void {
         });
         defer file.close(init.io);
 
-        const reader_buf = try allocator.alloc(u8, 4096);
-        defer allocator.free(reader_buf);
+        const reader_buf = try gpa.alloc(u8, 4096);
+        defer gpa.free(reader_buf);
         var file_reader = file.reader(init.io, reader_buf);
         var io_reader = &file_reader.interface;
 
@@ -195,9 +195,9 @@ pub fn main(init: std.process.Init) !void {
                 continue;
             }
 
-            const input_line = try allocator.create(ArrayList(u8));
-            input_line.* = try ArrayList(u8).initCapacity(allocator, 1024);
-            try lines.append(allocator, input_line);
+            const input_line = try gpa.create(ArrayList(u8));
+            input_line.* = try ArrayList(u8).initCapacity(gpa, 1024);
+            try lines.append(gpa, input_line);
 
             // print("input_line: {any}\n", .{input_line.items});
 
@@ -222,7 +222,7 @@ pub fn main(init: std.process.Init) !void {
                                 if (contains(u8, ignores.items, 1, x))
                                     continue;
 
-                                try input_line.append(allocator, x);
+                                try input_line.append(gpa, x);
                             },
                         }
                     }
@@ -232,7 +232,7 @@ pub fn main(init: std.process.Init) !void {
                         if (contains(u8, ignores.items, 1, c))
                             continue;
 
-                        try input_line.append(allocator, c);
+                        try input_line.append(gpa, c);
                     }
                 },
             }
@@ -249,7 +249,7 @@ pub fn main(init: std.process.Init) !void {
 
     print("root.children: {d}\n", .{root.children.count()});
 
-    var prefix_path = try ArrayList([]const u8).initCapacity(allocator, 1024);
+    var prefix_path = try ArrayList([]const u8).initCapacity(gpa, 1024);
 
     try root.show(0, arg_max_show_level, arg_min_count_level, false, &prefix_path);
 
@@ -257,19 +257,19 @@ pub fn main(init: std.process.Init) !void {
         // No need to free everything in production mode at the end
         // because the process is going to exit anyway.
 
-        prefix_path.deinit(allocator);
+        prefix_path.deinit(gpa);
 
         root.deinit();
 
         for (lines.items) |line| {
-            line.deinit(allocator);
-            allocator.destroy(line);
+            line.deinit(gpa);
+            gpa.destroy(line);
         }
-        lines.deinit(allocator);
+        lines.deinit(gpa);
 
         for (parse_rules.items) |item|
             item.deinit();
-        parse_rules.deinit(allocator);
+        parse_rules.deinit(gpa);
     }
 
     print("exit\n", .{});
